@@ -2,6 +2,8 @@ name: Desktop Build
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [release-from-backend]
   push:
     tags:
       - "v*"
@@ -30,6 +32,10 @@ jobs:
         run: npm install
 
       - name: Build desktop app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run tauri:build
+
+      - name: Upload desktop bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openflow-desktop-bundle-${{ matrix.os }}-${{ github.run_number }}
+          path: src-tauri/target/release/bundle

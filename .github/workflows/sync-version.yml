@@ -2,7 +2,7 @@ name: Sync Version From Backend
 
 on:
   repository_dispatch:
-    types: [sync-version-from-backend]
+    types: [sync-version-from-backend, release-from-backend]
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
