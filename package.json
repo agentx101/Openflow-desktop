@@ -5,19 +5,32 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local-backend": "tsx local-backend/server.ts",
+    "personal:dev": "concurrently -k \"npm:dev:local-backend\" \"npm:tauri:dev\"",
+    "personal:start": "npm install && npm run personal:dev",
     "build": "tsc -b && vite build",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/ws": "^8.5.13",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.2"
   }

@@ -2,19 +2,35 @@
 
 Desktop client (macOS + Windows) using Tauri + React.
 
-Uses the same backend sync API as web.
+This repo now includes a personal-use local backend with SQLite persistence.
 
-## Run
+## One-go personal run
+
+```bash
+npm run personal:start
+```
+
+This does:
+
+1. install dependencies
+2. start local backend on `http://localhost:8790`
+3. launch the desktop app
+
+SQLite DB is auto-created at:
+
+- `./data/openflow-local.db`
+
+## Advanced run
 
 ```bash
 npm install
-npm run tauri:dev
+npm run personal:dev
 ```
 
-Set backend URL in `.env`:
+Optional backend URL override in `.env`:
 
 ```bash
-VITE_API_BASE=http://localhost:8787
+VITE_API_BASE=http://localhost:8790
 ```
 
 ## CI + packaging + version sync

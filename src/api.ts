@@ -1,6 +1,6 @@
 import type { CanvasDocument, WorkspaceSnapshot, WorkspaceEvent } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8787";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8790";
 
 export async function getSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
   const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/snapshot`);
