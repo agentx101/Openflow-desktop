@@ -1,0 +1,5 @@
+ComfyUI-GGUF — https://github.com/city96/ComfyUI-GGUF
+Comfyroll Custom Nodes — https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
+rgthree-comfy — https://github.com/rgthree/rgthree-comfy
+Comfyui-In-Context-Lora-Utils — https://github.com/lrzjason/Comfyui-In-Context-Lora-Utils
+

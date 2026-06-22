@@ -28,6 +28,56 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   border-bottom:1px solid rgba(255,255,255,0.06);
   display:flex;align-items:center;padding:0 16px;gap:0;
 }
+.of-side{
+  position:fixed;top:46px;bottom:24px;left:0;z-index:140;display:flex;pointer-events:none;
+}
+.of-dock{
+  width:48px;background:rgba(10,14,20,.95);border-right:1px solid rgba(255,255,255,.08);
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 6px;pointer-events:auto;
+}
+.of-tab{
+  width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,.11);
+  background:rgba(255,255,255,.04);color:#c7d0de;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 120ms;
+}
+.of-tab:hover{background:rgba(255,255,255,.1);color:#fff}
+.of-tab.on{background:rgba(45,107,224,.18);border-color:rgba(91,141,236,.45);color:#e5efff}
+.of-tab svg{width:16px;height:16px;stroke-width:1.9}
+.of-tab.logo{font:800 10px var(--display);letter-spacing:.04em}
+.of-tab-collapse{margin-top:auto}
+.of-panel{
+  width:0;overflow:hidden;opacity:0;transform:translateX(-10px);transition:all 170ms ease;
+  background:rgba(10,14,20,.97);border-right:1px solid rgba(255,255,255,.09);pointer-events:none;
+}
+.of-side.open .of-panel{width:320px;opacity:1;transform:translateX(0);pointer-events:auto}
+.of-panel-inner{height:100%;display:flex;flex-direction:column}
+.of-head{
+  padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.of-title{font:700 20px var(--display);color:#fff;letter-spacing:-.02em}
+.of-search-row{
+  padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:8px;
+}
+.of-search{
+  flex:1;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);
+  color:#fff;font:500 14px var(--sans);padding:0 12px;outline:none;
+}
+.of-search::placeholder{color:#8b95a8}
+.of-chip-row{padding:10px 16px 8px;display:flex;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.of-chip{
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#c8d2e1;border-radius:10px;
+  padding:6px 10px;font:600 12px var(--sans);cursor:pointer;
+}
+.of-chip.on{background:rgba(255,255,255,.15);color:#fff}
+.of-list{padding:12px 12px 16px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.of-sec{padding:6px 4px 2px;font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#8f9cb2}
+.of-item{
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:10px;padding:10px 11px;
+}
+.of-item:hover{background:rgba(255,255,255,.08)}
+.of-item-title{font:600 14px var(--sans);color:#fff;line-height:1.3}
+.of-item-sub{font:500 11px var(--sans);color:#aeb9cc;margin-top:3px;line-height:1.35}
+.of-empty{padding:10px 4px;color:#8f9cb2;font:500 12px var(--sans)}
 .tb-logo{height:20px;opacity:.9;margin-right:10px;flex-shrink:0}
 .tb-slash{color:var(--ink-600);font-size:15px;margin-right:10px}
 .tb-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink-300);letter-spacing:-.01em}
@@ -680,6 +730,75 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .ce-close:hover{background:rgba(255,255,255,.12)}
 .ce-close svg{width:12px;height:12px;stroke-width:2.2}
 #comfy-editor-frame{width:100%;height:calc(100% - 40px);border:0;display:block;background:#0a0e14}
+
+#keys-backdrop{
+  position:fixed;inset:0;z-index:540;display:none;background:rgba(8,12,20,.76);backdrop-filter:blur(3px);
+}
+#keys-backdrop.open{display:block}
+#keys-modal{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(680px,94vw);max-height:88vh;overflow:auto;
+  border-radius:12px;border:1px solid rgba(255,255,255,.14);background:#0c1220;box-shadow:0 26px 90px rgba(0,0,0,.68);
+}
+.keys-head{
+  display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid rgba(255,255,255,.08)
+}
+.keys-title{font:700 13px var(--display);color:#fff}
+.keys-sub{font:500 10px var(--sans);color:var(--ink-500)}
+.keys-close{
+  margin-left:auto;width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06);color:#b8c6da;cursor:pointer;display:flex;align-items:center;justify-content:center
+}
+.keys-close svg{width:12px;height:12px;stroke-width:2.2}
+.keys-body{padding:12px;display:flex;flex-direction:column;gap:10px}
+.keys-row{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center}
+.keys-row label{font:600 11px var(--sans);color:#dce6f7}
+.keys-row input,.keys-row select{
+  width:100%;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.04);
+  color:#fff;padding:0 10px;font:500 11px var(--sans);outline:none
+}
+.keys-foot{display:flex;justify-content:flex-end;gap:8px;padding:0 12px 12px}
+.keys-btn{
+  height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.05);color:#d7e1f2;font:600 11px var(--sans);cursor:pointer
+}
+.keys-btn.primary{background:rgba(45,107,224,.24);border-color:rgba(91,141,236,.45);color:#e9f1ff}
+
+#plans-backdrop{
+  position:fixed;inset:0;z-index:545;display:none;background:rgba(6,10,18,.84);backdrop-filter:blur(3px);
+}
+#plans-backdrop.open{display:block}
+#plans-modal{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(1400px,96vw);max-height:92vh;overflow:auto;border-radius:16px;
+  border:1px solid rgba(255,255,255,.12);background:#0a101b;box-shadow:0 26px 90px rgba(0,0,0,.7);padding:18px;
+}
+.pl-head{text-align:center;padding-top:6px}
+.pl-h1{font:700 40px var(--display);color:#fff;letter-spacing:-.02em}
+.pl-h2{font:700 16px var(--sans);color:#95a1b5;margin-top:3px}
+.pl-cycle{margin:16px auto 14px;display:flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:4px;width:420px;max-width:100%}
+.pl-cycle button{flex:1;height:42px;border:none;border-radius:9px;background:transparent;color:#aeb8cb;font:700 19px var(--sans);cursor:pointer}
+.pl-cycle button.on{background:#f2f4f8;color:#111827}
+.pl-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.pl-card{border:1px solid rgba(255,255,255,.2);border-radius:18px;background:#0f141f;padding:22px;display:flex;flex-direction:column;min-height:620px}
+.pl-title{font:700 44px var(--display);color:#fff}
+.pl-price{font:800 64px var(--display);color:#fff;line-height:1;margin-top:6px}
+.pl-price small{font:700 18px var(--sans);color:#d8deea}
+.pl-bill{font:600 18px var(--sans);color:#a3aec2;margin-top:8px}
+.pl-pill{margin-top:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;color:#d8deea;font:600 14px var(--sans)}
+.pl-feat{margin-top:18px;display:flex;justify-content:space-between;gap:8px;font:600 18px var(--sans);color:#eef2f9}
+.pl-feat-sub{font:500 13px var(--sans);color:#99a7bd;margin-top:3px}
+.pl-cta{margin-top:auto;height:58px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font:800 29px var(--display);cursor:pointer}
+.pl-cta.primary{background:#f4f6fb;color:#121827}
+.pl-close{
+  position:absolute;right:14px;top:14px;width:30px;height:30px;border-radius:10px;border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);color:#dbe5f7;display:flex;align-items:center;justify-content:center;cursor:pointer
+}
+.pl-close svg{width:14px;height:14px;stroke-width:2.3}
+@media (max-width:1200px){
+  .pl-grid{grid-template-columns:1fr}
+  .pl-card{min-height:unset}
+}
 </style>
 </head>
 <body>
@@ -719,6 +838,36 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   <div class="tb-r">
     <select id="project-picker" class="tb-project"></select>
     <span id="zdisplay">100%</span>
+  </div>
+</div>
+
+<!-- LEFT SIDEBAR (Comfy-style) -->
+<div class="of-side open" id="of-side">
+  <div class="of-dock">
+    <button class="of-tab logo on" id="of-tab-openflow" title="Openflow Menu" onclick="openLeftSection('openflow')">OF</button>
+    <button class="of-tab" id="of-tab-assets" title="Assets" onclick="openLeftSection('assets')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.6"/><path d="M21 16l-5-5-4 4-2-2-4 4"/></svg>
+    </button>
+    <button class="of-tab" id="of-tab-nodes" title="Nodes" onclick="openLeftSection('nodes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7.5 7.5l3 8M16.5 7.5l-3 8"/></svg>
+    </button>
+    <button class="of-tab" id="of-tab-workflows" title="Workflows" onclick="openLeftSection('workflows')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h6v4H4zM14 14h6v4h-6zM14 4h6v4h-6zM4 14h6v4H4z"/><path d="M10 6h4M10 16h4"/></svg>
+    </button>
+    <button class="of-tab" id="of-tab-templates" title="Templates" onclick="openLeftSection('templates')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>
+    </button>
+    <button class="of-tab of-tab-collapse" id="of-collapse" title="Collapse Sidebar" onclick="toggleLeftSidebar()">
+      <svg id="of-collapse-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15,18 9,12 15,6"/></svg>
+    </button>
+  </div>
+  <div class="of-panel" id="of-panel">
+    <div class="of-panel-inner">
+      <div class="of-head"><div class="of-title" id="of-title">Openflow</div></div>
+      <div class="of-search-row"><input id="of-search" class="of-search" placeholder="Search..." oninput="onLeftSearch(this.value)"></div>
+      <div class="of-chip-row" id="of-chip-row"></div>
+      <div class="of-list" id="of-list"></div>
+    </div>
   </div>
 </div>
 
@@ -816,6 +965,71 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   </div>
 </div>
 
+<!-- BILLING + API KEYS -->
+<div id="keys-backdrop" onclick="if(event.target===this)closeKeysModal()">
+  <div id="keys-modal">
+    <div class="keys-head">
+      <div class="keys-title">Billing + API Keys</div>
+      <div class="keys-sub">Use Openflow Pro or bring your own keys</div>
+      <button class="keys-close" onclick="closeKeysModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="keys-body">
+      <div class="keys-row">
+        <label>Access Mode</label>
+        <select id="ks-mode">
+          <option value="community">Community (free)</option>
+          <option value="pro">Openflow Pro</option>
+          <option value="byok">BYOK</option>
+        </select>
+      </div>
+      <div class="keys-row"><label>Current Plan</label><input id="ks-plan" readonly /></div>
+      <div class="keys-row"><label>Credits Remaining</label><input id="ks-credits" readonly /></div>
+      <div class="keys-row"><label>Plans</label><button class="keys-btn" style="justify-self:start" onclick="openPlansModal()">Manage credit plans</button></div>
+      <div class="keys-row"><label>Openflow Pro Token</label><input id="ks-openflow-token" placeholder="opf_live_..." /></div>
+      <div class="keys-row">
+        <label>Runtime Backend</label>
+        <select id="ks-backend-mode">
+          <option value="local">Local desktop backend</option>
+          <option value="hosted">Hosted Openflow backend</option>
+        </select>
+      </div>
+      <div class="keys-row"><label>Hosted API Base</label><input id="ks-hosted-api-base" placeholder="https://api.openflow.ai" /></div>
+      <div class="keys-row"><label>Hosted Workspace ID</label><input id="ks-hosted-workspace" placeholder="default-workspace" /></div>
+      <div class="keys-row"><label>Hosted API Token</label><input id="ks-hosted-token" placeholder="Bearer token (optional)" /></div>
+      <div class="keys-row"><label>OpenAI API Key</label><input id="ks-openai" placeholder="sk-..." /></div>
+      <div class="keys-row"><label>Anthropic API Key</label><input id="ks-anthropic" placeholder="sk-ant-..." /></div>
+      <div class="keys-row"><label>Custom Agent API Key</label><input id="ks-custom-agent" placeholder="Your own agent backend key" /></div>
+      <div class="keys-row"><label>ElevenLabs API Key</label><input id="ks-eleven" placeholder="xi-api-key..." /></div>
+      <div class="keys-row"><label>Comfy API Base</label><input id="ks-comfy-base" placeholder="http://127.0.0.1:8188" /></div>
+      <div class="keys-row"><label>Comfy API Key</label><input id="ks-comfy-key" placeholder="Optional for hosted Comfy" /></div>
+    </div>
+    <div class="keys-foot">
+      <button class="keys-btn" onclick="closeKeysModal()">Cancel</button>
+      <button class="keys-btn primary" onclick="saveKeysSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- OPENFLOW PLANS -->
+<div id="plans-backdrop" onclick="if(event.target===this)closePlansModal()">
+  <div id="plans-modal">
+    <button class="pl-close" onclick="closePlansModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div class="pl-head">
+      <div class="pl-h1">Plans for Openflow Workspace</div>
+      <div class="pl-h2">Credit-based plans tuned for full-funnel creative strategy</div>
+      <div class="pl-cycle">
+        <button id="pl-yearly" class="on" onclick="setPlansCycle('yearly')">Yearly -20%</button>
+        <button id="pl-monthly" onclick="setPlansCycle('monthly')">Monthly</button>
+      </div>
+    </div>
+    <div class="pl-grid" id="plans-grid"></div>
+  </div>
+</div>
+
 <script>
 // ── UTILS ─────────────────────────────────────────────────────
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -851,6 +1065,71 @@ function comfyFallbackSrc(nodeId,mode='mini'){
   return `site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(nodeId||'')}${mode==='editor'?'&editor=1':''}`;
 }
 let comfyGenSeq=1;
+const DESKTOP_SETTINGS_STORAGE_KEY='openflow.desktop.settings.v1';
+const SETTINGS_API_CANDIDATES=(function(){
+  const fromLs=localStorage.getItem('openflow.settingsApiBase')||'';
+  const host=window.location.hostname||'localhost';
+  const fromQuery=(new URLSearchParams(window.location.search)).get('apiBase')||'';
+  const own=window.location.origin;
+  return [fromQuery,fromLs,`${own}`,`http://${host}:8790`,`http://${host}:8787`,`http://localhost:8790`,`http://localhost:8787`]
+    .filter(Boolean)
+    .map(b=>String(b).replace(/\/+$/,''));
+})();
+let settingsApiBaseCache='';
+const DEFAULT_DESKTOP_SETTINGS={
+  entitlement:{mode:'community',openflowToken:''},
+  keys:{
+    openaiApiKey:'',
+    anthropicApiKey:'',
+    customAgentApiKey:'',
+    elevenlabsApiKey:'',
+    comfyApiBase:'',
+    comfyApiKey:''
+  },
+  integrations:{},
+  billing:{
+    cycle:'yearly',
+    plan:'standard',
+    creditsRemaining:50400,
+    creditsTotal:50400
+  },
+  runtime:{
+    backendMode:'local',
+    hostedApiBase:'',
+    hostedWorkspaceId:'',
+    hostedAuthToken:''
+  }
+};
+let desktopSettings=JSON.parse(JSON.stringify(DEFAULT_DESKTOP_SETTINGS));
+const OPENFLOW_PLAN_NODE_LIMITS={standard:10,creator:25,pro:Number.POSITIVE_INFINITY};
+const OPENFLOW_PLAN_LABELS={standard:'Basic',creator:'Advanced',pro:'Pro'};
+const OPENFLOW_PLAN_CATALOG={
+  standard:{
+    name:'Standard',
+    monthly:{price:20,credits:4200},
+    yearly:{price:16,credits:50400},
+    runLimit:'30 min',
+    featureLead:'Openflow Brain Copilot',
+    featureDetails:'1 workspace, 3 active campaigns, community templates'
+  },
+  creator:{
+    name:'Creator',
+    monthly:{price:35,credits:7400},
+    yearly:{price:28,credits:88800},
+    runLimit:'45 min',
+    featureLead:'Openflow Agent Studio',
+    featureDetails:'5 workspaces, premium templates, marketplace publish'
+  },
+  pro:{
+    name:'Pro',
+    monthly:{price:100,credits:21100},
+    yearly:{price:80,credits:253200},
+    runLimit:'1 hr',
+    featureLead:'Openflow Growth Orchestrator',
+    featureDetails:'unlimited workspaces, managed agents, priority queue'
+  }
+};
+let plansCycle='yearly';
 function slugifyWorkflowName(s){
   return String(s||'workflow').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'workflow';
 }
@@ -992,6 +1271,7 @@ let dragging=null,panStart=null,ctxId=null,wasDragged=false;
 let connDrag=null;
 let linkDraw=null;
 let nodePickerCtx=null;
+let leftSidebar={section:'openflow',query:'',open:true,templateFilter:'saved'};
 
 const PROJECTS=[
   {id:'motion-golden',name:'Motion Canvas · Golden Demo'},
@@ -1144,16 +1424,18 @@ function mkSpoke(n){
 
   let body = '';
   if(n.connected === false){
+    const dep=externalDepForNode(n);
+    const connectText=dep&&isByokLocalMode()?`Connect ${dep.providerName}`:'Connect';
     const bigIco = n.img
       ? `<img src="${n.img}" style="width:22px;height:22px;object-fit:contain">`
       : `<span style="font:700 12px var(--display);color:${n.color}">${n.ico}</span>`;
     body = `<div class="spoke-connect">
       <div class="spoke-connect-ico" style="background:${n.color}18;border:1px solid ${n.color}30">${bigIco}</div>
       <div class="spoke-connect-lbl">Connect ${esc(n.srcName||n.name)}</div>
-      <div class="spoke-connect-sub">Authorise access to start pulling data</div>
+      <div class="spoke-connect-sub">${esc(integrationStatusText(n))}</div>
       <button class="spoke-connect-btn" style="background:${n.color};color:#000"
         onclick="event.stopPropagation();simulateConnect('${n.id}')">
-        Connect →
+        ${esc(connectText)} →
       </button>
     </div>${comfyMini}${comfyBtn}`;
   } else {
@@ -1284,6 +1566,7 @@ function renderAll(){
   const layer=nlEl();
   layer.innerHTML='';
   nodes.forEach(n=>layer.appendChild(buildEl(n)));
+  renderLeftSidebar();
   requestAnimationFrame(()=>{
     renderConns();updateMM();
     nodes.filter(n=>n.type==='hub').forEach(n=>{
@@ -1459,17 +1742,65 @@ function mockGeneric(n,r){
 // ── SIMULATE CONNECT ─────────────────────────────────────────
 function simulateConnect(id){
   const n=gn(id);if(!n)return;
-  // Show spinner
+  const dep=externalDepForNode(n);
   const btn=document.querySelector(`[data-id="${id}"] .spoke-connect-btn`);
   if(btn){btn.innerHTML='<span class="spoke-connect-spinner"></span> Connecting…';btn.disabled=true;}
-  setTimeout(()=>{
+  setTimeout(async ()=>{
+    const nodeName=n.srcName||n.name;
+    const byokLocal=isByokLocalMode();
+    if(byokLocal && dep){
+      let secret='';
+      let accountLabel='';
+      if(dep.authType==='oauth'){
+        const account=prompt(`Connect ${dep.providerName} account (email/workspace ID)`,'');
+        if(account===null){
+          renderAll();
+          return;
+        }
+        secret='oauth_connected';
+        accountLabel=String(account||'').trim();
+      }else if(dep.keyField){
+        const entered=prompt(`Enter ${dep.keyField} for ${dep.providerName}`,'');
+        if(entered===null){
+          renderAll();
+          return;
+        }
+        secret=String(entered||'').trim();
+        if(!secret){
+          renderAll();
+          showToast(id,`Missing ${dep.keyField}`);
+          return;
+        }
+      }else{
+        secret='connected';
+      }
+      desktopSettings.integrations=desktopSettings.integrations||{};
+      desktopSettings.integrations[dep.integrationId]={
+        connected:true,
+        provider:dep.providerName,
+        authType:dep.authType,
+        account:accountLabel,
+        keyPreview:secret?`${secret.slice(0,4)}...${secret.slice(-2)}`:'',
+        connectedAt:new Date().toISOString()
+      };
+      localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+      const remote=await persistSettingsRemote(desktopSettings);
+      if(remote){
+        desktopSettings=remote;
+        localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+      }
+    }
     n.connected=true;
     n.sync='just now';
     n.notifCount=1;
-    n.runs=[{date:'Just now',summary:'Connection established — first sync running',count:'–',url:'#'}];
+    const sourceId=sourceIdForNode(n);
+    const generationNode=sourceId==='comfyui'||sourceId==='elevenlabs'||sourceId==='elevenlabs_music';
+    n.runs=generationNode
+      ? [{date:'Ready',summary:sourceId==='elevenlabs'?'ElevenLabs voiceover workflow attached · 1 voice template':sourceId==='elevenlabs_music'?'ElevenLabs video-to-music workflow attached · 1 music template':'Comfy sub-canvas attached · 1 workflow template',count:'1 wf',url:`site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(n.id)}`}]
+      : [{date:'Just now',summary:'Connection established — first sync running',count:'–',url:'#'}];
     renderAll();
-    showToast(id, (n.srcName||n.name)+' connected successfully');
-  },1800);
+    showToast(id, byokLocal&&dep?`${nodeName} connected (${dep.providerName})`:`${nodeName} connected successfully`);
+  },1100);
 }
 
 // ── SPOKE TOGGLE ─────────────────────────────────────────────
@@ -1771,6 +2102,8 @@ function isNearNodeEdge(n,wp,tol=16,role='in'){
 }
 const NODE_PICK_INPUT=[
   {id:'comfyui',name:'Comfy UI Node',desc:'Generation sub-canvas',type:'spoke'},
+  {id:'elevenlabs',name:'ElevenLabs Voice Node',desc:'Voiceover generation',type:'spoke'},
+  {id:'elevenlabs_music',name:'ElevenLabs Music Node',desc:'Video-to-music generation',type:'spoke'},
   {id:'reddit',name:'Reddit Input',desc:'Community source',type:'spoke'},
   {id:'ga4',name:'GA4 Input',desc:'Analytics feed',type:'spoke'},
   {id:'csv',name:'CSV Upload',desc:'Manual dataset',type:'spoke'},
@@ -1797,6 +2130,7 @@ function closeNodePicker(){
 }
 function addFromNodePicker(kindId,cat){
   if(!nodePickerCtx) return;
+  if(!ensureNodeLimit(1)) return;
   const from=gn(nodePickerCtx.fromId); if(!from) return;
   const nodeId=`new_${kindId}_${Date.now()}`;
   const {w:fw,h:fh}=nodeDims(from);
@@ -1821,12 +2155,13 @@ function addFromNodePicker(kindId,cat){
     });
   } else {
     const src=SOURCE_TYPES.find(s=>s.id===kindId);
-    const comfy=kindId==='comfyui';
+    const generationPreset=kindId==='comfyui'||kindId==='elevenlabs'||kindId==='elevenlabs_music';
+    const autoConnected=generationPreset && !isByokLocalMode();
     nodes.push({
       id:nodeId,type:'spoke',x:nx,y:ny,color:(src?.color||from.color||'#6B7280'),name:(src?.name||'New Input'),ico:(src?.ico||'Nd'),img:(src?.img||null),
-      srcName:(src?.name||'New Input'),connected:comfy,
-      runs:comfy?[{date:'Ready',summary:'Comfy sub-canvas attached · 1 workflow template',count:'1 wf',url:`site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(nodeId)}`}]:[],
-      sync:comfy?'just now':'not connected',notifCount:0,collapsed:false
+      srcName:(src?.name||'New Input'),connected:autoConnected,
+      runs:autoConnected?[{date:'Ready',summary:kindId==='elevenlabs'?'ElevenLabs voiceover workflow attached · 1 voice template':kindId==='elevenlabs_music'?'ElevenLabs video-to-music workflow attached · 1 music template':'Comfy sub-canvas attached · 1 workflow template',count:'1 wf',url:`site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(nodeId)}`}]:[],
+      sync:autoConnected?'just now':'not connected',notifCount:0,collapsed:false
     });
   }
   if(cat==='output'){
@@ -2059,19 +2394,132 @@ const SOURCE_TYPES=[
   {id:'survey',   name:'Survey',         ico:'Sv', img:null,                                                                     color:'#8B5CF6', desc:'Primary research'},
   {id:'csv',      name:'CSV Upload',     ico:'Cs', img:null,                                                                     color:'#10B981', desc:'Custom dataset'},
   {id:'comfyui',  name:'Comfy UI Node',  ico:'Cf', img:null,                                                                     color:'#EC4899', desc:'Generation sub-canvas'},
+  {id:'elevenlabs',name:'ElevenLabs Voice Node',ico:'11',img:null,                                                               color:'#8B5CF6', desc:'Voiceover generation'},
+  {id:'elevenlabs_music',name:'ElevenLabs Music Node',ico:'Mu',img:null,                                                           color:'#A855F7', desc:'Video-to-music generation'},
   {id:'ga4perf',  name:'Performance KPI',ico:'Pf', img:'https://www.google.com/s2/favicons?domain=analytics.google.com&sz=64',   color:'#EC4899', desc:'Live KPI tracking'},
   {id:'api',      name:'Custom API',     ico:'AP', img:null,                                                                     color:'#6B7280', desc:'Any data source'},
 ];
-
-const BRAIN_NODE_MAP={
-  customer:['reddit','amazon','pew','survey','csv','api','comfyui'],
-  brand:['notion','meta','ga4','shopify','api','csv','comfyui'],
-  presentation:['instagram','youtube','pinterest','meta','csv','comfyui'],
-  performance:['ga4perf','googleads','ga4','shopify','api','csv','comfyui']
+const EXTERNAL_DEP_REQUIREMENTS={
+  reddit:{integrationId:'apify',providerName:'Apify',authType:'api_key',keyField:'APIFY_API_KEY'},
+  amazon:{integrationId:'apify',providerName:'Apify',authType:'api_key',keyField:'APIFY_API_KEY'},
+  tiktok:{integrationId:'tiktok',providerName:'TikTok',authType:'api_key',keyField:'TIKTOK_API_KEY'},
+  instagram:{integrationId:'meta',providerName:'Meta',authType:'oauth'},
+  youtube:{integrationId:'google',providerName:'Google',authType:'oauth'},
+  googleads:{integrationId:'google_ads',providerName:'Google Ads',authType:'oauth'},
+  gsc:{integrationId:'google_search_console',providerName:'Google Search Console',authType:'oauth'},
+  shopify:{integrationId:'shopify',providerName:'Shopify',authType:'api_key',keyField:'SHOPIFY_ACCESS_TOKEN'},
+  klaviyo:{integrationId:'klaviyo',providerName:'Klaviyo',authType:'api_key',keyField:'KLAVIYO_API_KEY'},
+  meta:{integrationId:'meta',providerName:'Meta',authType:'oauth'},
+  notion:{integrationId:'notion',providerName:'Notion',authType:'oauth'},
+  ga4:{integrationId:'google_analytics',providerName:'Google Analytics',authType:'oauth'},
+  ga4perf:{integrationId:'google_analytics',providerName:'Google Analytics',authType:'oauth'},
+  pinterest:{integrationId:'pinterest',providerName:'Pinterest',authType:'oauth'},
+  semrush:{integrationId:'semrush',providerName:'SEMrush',authType:'api_key',keyField:'SEMRUSH_API_KEY'},
+  api:{integrationId:'custom_api',providerName:'Custom API',authType:'api_key',keyField:'CUSTOM_API_KEY'},
+  comfyui:{integrationId:'comfyui',providerName:'ComfyUI',authType:'api_key',keyField:'COMFY_API_KEY'},
+  elevenlabs:{integrationId:'elevenlabs',providerName:'ElevenLabs',authType:'api_key',keyField:'ELEVENLABS_API_KEY'},
+  elevenlabs_music:{integrationId:'elevenlabs',providerName:'ElevenLabs',authType:'api_key',keyField:'ELEVENLABS_API_KEY'}
 };
 
+const BRAIN_NODE_MAP={
+  customer:['reddit','amazon','pew','survey','csv','api','comfyui','elevenlabs','elevenlabs_music'],
+  brand:['notion','meta','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music'],
+  presentation:['instagram','youtube','pinterest','meta','csv','comfyui','elevenlabs','elevenlabs_music'],
+  performance:['ga4perf','googleads','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music']
+};
+const LEFT_MENU_ITEMS=[
+  {name:'Openflow Plans',sub:'Credit plans and Openflow-specific features',action:'open-plans'},
+  {name:'Billing & API Keys',sub:'Openflow Pro token or BYOK configuration',action:'open-settings'},
+  {name:'File',sub:'New project · Open · Save · Duplicate'},
+  {name:'Edit',sub:'Undo · Redo · Cut · Copy · Paste'},
+  {name:'View',sub:'Fit all · Focus agents · Toggle minimap'},
+  {name:'Export',sub:'PDF brief · JSON workflow · Asset bundle'}
+];
+const LEFT_TEMPLATE_SETS={
+  saved:[
+    {name:'UGC Hook Sprint',sub:'Your template · Last edited 2h ago'},
+    {name:'7-Second Product Demo',sub:'Your template · Video + voice stack'}
+  ],
+  public:[
+    {name:'Comfy Image Starter',sub:'Community template · Free'},
+    {name:'Eleven Voiceover Launch',sub:'Community template · Free'}
+  ],
+  purchased:[
+    {name:'Performance Creative OS',sub:'Purchased by you · Premium'},
+    {name:'D2C Angle Factory',sub:'Purchased by you · Premium'}
+  ]
+};
+let comfyTemplatesLibrary=[];
+let comfyTemplatesLoaded=false;
+
+function isHostedRuntime(){
+  return (desktopSettings.runtime&&desktopSettings.runtime.backendMode)==='hosted';
+}
+function isByokLocalMode(){
+  return !isHostedRuntime() && (desktopSettings.entitlement&&desktopSettings.entitlement.mode)==='byok';
+}
+function sourceIdForNode(n){
+  if(!n) return '';
+  if(SOURCE_TYPES.some(s=>s.id===n.id)) return n.id;
+  const id=String(n.id||'');
+  if(id.startsWith('new_')){
+    const parts=id.split('_');
+    return parts[1]||'';
+  }
+  const hubMatch=id.match(/^(customer|brand|presentation|performance)_([^_]+)_/);
+  if(hubMatch) return hubMatch[2]||'';
+  const byName=(n.srcName||n.name||'').toLowerCase().replace(/\s+/g,'');
+  const src=SOURCE_TYPES.find(s=>s.name.toLowerCase().replace(/\s+/g,'')===byName);
+  return src?src.id:'';
+}
+function externalDepForNode(n){
+  const sid=sourceIdForNode(n);
+  return EXTERNAL_DEP_REQUIREMENTS[sid]||null;
+}
+function countUserAddedNodes(){
+  return nodes.filter(n=>/^new_/.test(String(n.id||''))||/^(customer|brand|presentation|performance)_[^_]+_/.test(String(n.id||''))).length;
+}
+function activePlanNodeLimit(){
+  const plan=(desktopSettings.billing&&desktopSettings.billing.plan)||'standard';
+  const lim=OPENFLOW_PLAN_NODE_LIMITS[plan];
+  return Number.isFinite(lim)?lim:Number.POSITIVE_INFINITY;
+}
+function ensureNodeLimit(nextAdds=1){
+  if(!isHostedRuntime()) return true;
+  const limit=activePlanNodeLimit();
+  const current=countUserAddedNodes();
+  if((current+nextAdds)<=limit) return true;
+  const plan=(desktopSettings.billing&&desktopSettings.billing.plan)||'standard';
+  const planLabel=OPENFLOW_PLAN_LABELS[plan]||'Basic';
+  showToast('performance',`${planLabel} hosted plan limit reached (${limit} nodes/agents). Upgrade to add more.`);
+  openPlansModal();
+  return false;
+}
+function integrationStatusText(n){
+  const dep=externalDepForNode(n);
+  if(!dep) return 'No external auth required';
+  if(!isByokLocalMode()) return `Managed by Openflow (${dep.providerName})`;
+  return dep.authType==='oauth' ? `Connect ${dep.providerName} account` : `Add ${dep.keyField||'API key'}`;
+}
+function isManagedPaidMode(){
+  return isHostedRuntime() && (desktopSettings.entitlement&&desktopSettings.entitlement.mode)!=='byok';
+}
+async function chargeCredits(units){
+  const amt=Math.max(0,Math.floor(Number(units)||0));
+  if(!amt) return;
+  const billing=desktopSettings.billing||{};
+  const current=Math.max(0,Math.floor(Number(billing.creditsRemaining)||0));
+  desktopSettings.billing={...billing,creditsRemaining:Math.max(0,current-amt)};
+  localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  const remote=await persistSettingsRemote(desktopSettings);
+  if(remote){
+    desktopSettings=remote;
+    localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  }
+}
+
 function brainNodeButtons(hubId){
-  const ids=BRAIN_NODE_MAP[hubId]||['csv','api','comfyui'];
+  const ids=BRAIN_NODE_MAP[hubId]||['csv','api','comfyui','elevenlabs','elevenlabs_music'];
   return ids.map(id=>{
     const s=SOURCE_TYPES.find(x=>x.id===id);
     if(!s) return '';
@@ -2079,6 +2527,374 @@ function brainNodeButtons(hubId){
       ${esc(s.name)}<small>${esc(s.desc)}</small>
     </button>`;
   }).join('');
+}
+
+function leftSectionTitle(sec){
+  return {openflow:'Openflow',assets:'Media Assets',nodes:'Nodes',workflows:'Workflows',templates:'Templates'}[sec]||'Openflow';
+}
+function setLeftActiveTab(sec){
+  ['openflow','assets','nodes','workflows','templates'].forEach(id=>{
+    const el=document.getElementById('of-tab-'+id);
+    if(el) el.classList.toggle('on',id===sec);
+  });
+}
+function openLeftSection(sec){
+  leftSidebar.section=sec;
+  leftSidebar.open=true;
+  document.getElementById('of-side').classList.add('open');
+  document.getElementById('of-collapse-ico').innerHTML='<polyline points="15,18 9,12 15,6"/>';
+  renderLeftSidebar();
+}
+function toggleLeftSidebar(){
+  leftSidebar.open=!leftSidebar.open;
+  document.getElementById('of-side').classList.toggle('open',leftSidebar.open);
+  document.getElementById('of-collapse-ico').innerHTML=leftSidebar.open
+    ? '<polyline points="15,18 9,12 15,6"/>'
+    : '<polyline points="9,18 15,12 9,6"/>';
+}
+function onLeftSearch(v){
+  leftSidebar.query=String(v||'').trim().toLowerCase();
+  renderLeftSidebar();
+}
+function leftFilter(items){
+  if(!leftSidebar.query) return items;
+  return items.filter(it=>`${it.name||''} ${it.sub||''}`.toLowerCase().includes(leftSidebar.query));
+}
+function renderLeftSidebar(){
+  const sec=leftSidebar.section;
+  const list=document.getElementById('of-list');
+  const chips=document.getElementById('of-chip-row');
+  const title=document.getElementById('of-title');
+  const search=document.getElementById('of-search');
+  if(!list||!chips||!title) return;
+  title.textContent=leftSectionTitle(sec);
+  if(search) search.placeholder = sec==='assets' ? 'Search assets...' : sec==='nodes' ? 'Search nodes...' : 'Search...';
+  setLeftActiveTab(sec);
+  chips.innerHTML='';
+
+  if(sec==='openflow'){
+    const rows=leftFilter(LEFT_MENU_ITEMS);
+    list.innerHTML=rows.length?rows.map(r=>`<div class="of-item" ${r.action?`onclick="runOpenflowAction('${r.action}')"`:''}><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join(''):'<div class="of-empty">No options found</div>';
+    return;
+  }
+  if(sec==='assets'){
+    const assetNode=gn('assetgen');
+    const runs=(assetNode&&assetNode.runs)||[];
+    const rows=leftFilter(runs.map(r=>({name:r.genCode||r.wfName||'Generated Asset',sub:`${r.wfCode||'WF'} · ${r.date||''} · ${r.count||'1'} item`})));
+    list.innerHTML=rows.length?rows.map(r=>`<div class="of-item"><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join(''):'<div class="of-empty">No generated assets yet</div>';
+    return;
+  }
+  if(sec==='nodes'){
+    const groups=Object.entries(BRAIN_NODE_MAP).map(([brain,ids])=>({
+      brain,
+      items:(ids||[]).map(id=>SOURCE_TYPES.find(s=>s.id===id)).filter(Boolean).map(s=>({name:s.name,sub:s.desc}))
+    }));
+    list.innerHTML=groups.map(g=>{
+      const rows=leftFilter(g.items);
+      if(!rows.length) return '';
+      return `<div class="of-sec">${esc(g.brain)} brain</div>${rows.map(r=>`<div class="of-item"><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join('')}`;
+    }).join('') || '<div class="of-empty">No nodes found</div>';
+    return;
+  }
+  if(sec==='workflows'){
+    const rows=leftFilter([
+      {name:'WF-COMFY-IMAGE',sub:'Comfy image generation · active'},
+      {name:'WF-COMFY-VIDEO',sub:'Comfy video generation · active'},
+      {name:'WF-11-VOICE',sub:'ElevenLabs voiceover · active'},
+      {name:'WF-11-MUSIC',sub:'ElevenLabs video-to-music · active'}
+    ]);
+    list.innerHTML=rows.length?rows.map(r=>`<div class="of-item"><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join(''):'<div class="of-empty">No workflows found</div>';
+    return;
+  }
+  if(sec==='templates'){
+    const active=leftSidebar.templateFilter||'saved';
+    chips.innerHTML=`
+      <button class="of-chip ${active==='saved'?'on':''}" onclick="setTemplateFilter('saved')">Saved</button>
+      <button class="of-chip ${active==='public'?'on':''}" onclick="setTemplateFilter('public')">Public</button>
+      <button class="of-chip ${active==='purchased'?'on':''}" onclick="setTemplateFilter('purchased')">Purchased</button>`;
+    const sourceRows=active==='public' && comfyTemplatesLibrary.length
+      ? comfyTemplatesLibrary
+      : (LEFT_TEMPLATE_SETS[active]||[]);
+    const rows=leftFilter(sourceRows);
+    if(active==='public' && !comfyTemplatesLoaded){
+      list.innerHTML='<div class="of-empty">Loading Comfy templates...</div>';
+      return;
+    }
+    list.innerHTML=rows.length?rows.map(r=>`<div class="of-item"><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join(''):'<div class="of-empty">No templates found</div>';
+  }
+}
+function setTemplateFilter(kind){
+  leftSidebar.templateFilter=kind;
+  renderLeftSidebar();
+}
+function runOpenflowAction(action){
+  if(action==='open-plans'){
+    openPlansModal();
+    return;
+  }
+  if(action==='open-settings'){
+    openKeysModal();
+    return;
+  }
+  showToast('brand','Action: '+action);
+}
+function mergeDesktopSettings(next){
+  const s=next||{};
+  const billing=s.billing||{};
+  const cycle=billing.cycle==='monthly'?'monthly':'yearly';
+  const plan=['standard','creator','pro'].includes(billing.plan)?billing.plan:'standard';
+  const cat=OPENFLOW_PLAN_CATALOG[plan]||OPENFLOW_PLAN_CATALOG.standard;
+  const defaultCredits=(cat[cycle]&&cat[cycle].credits)||50400;
+  const creditsTotal=Number.isFinite(Number(billing.creditsTotal))?Math.max(0,Math.floor(Number(billing.creditsTotal))):defaultCredits;
+  const creditsRemaining=Number.isFinite(Number(billing.creditsRemaining))?Math.max(0,Math.floor(Number(billing.creditsRemaining))):creditsTotal;
+  const runtime=(s.runtime&&typeof s.runtime==='object')?s.runtime:{};
+  return {
+    entitlement:{
+      mode:(s.entitlement&&s.entitlement.mode)||desktopSettings.entitlement.mode||'community',
+      openflowToken:(s.entitlement&&s.entitlement.openflowToken)||''
+    },
+    keys:{
+      openaiApiKey:(s.keys&&s.keys.openaiApiKey)||'',
+      anthropicApiKey:(s.keys&&s.keys.anthropicApiKey)||'',
+      customAgentApiKey:(s.keys&&s.keys.customAgentApiKey)||'',
+      elevenlabsApiKey:(s.keys&&s.keys.elevenlabsApiKey)||'',
+      comfyApiBase:(s.keys&&s.keys.comfyApiBase)||'',
+      comfyApiKey:(s.keys&&s.keys.comfyApiKey)||''
+    },
+    integrations:(s.integrations&&typeof s.integrations==='object')
+      ? s.integrations
+      : (desktopSettings.integrations||{}),
+    billing:{
+      cycle,
+      plan,
+      creditsRemaining,
+      creditsTotal
+    },
+    runtime:{
+      backendMode:runtime.backendMode==='hosted'?'hosted':'local',
+      hostedApiBase:String(runtime.hostedApiBase||''),
+      hostedWorkspaceId:String(runtime.hostedWorkspaceId||''),
+      hostedAuthToken:String(runtime.hostedAuthToken||'')
+    }
+  };
+}
+function formatPlanLabel(){
+  const p=desktopSettings.billing.plan||'standard';
+  const cycle=desktopSettings.billing.cycle||'yearly';
+  const cat=OPENFLOW_PLAN_CATALOG[p]||OPENFLOW_PLAN_CATALOG.standard;
+  return `${cat.name} (${cycle})`;
+}
+async function loadDesktopSettings(){
+  for(const base of SETTINGS_API_CANDIDATES){
+    try{
+      const r=await fetch(`${base}/settings`);
+      if(r.ok){
+        settingsApiBaseCache=base;
+        desktopSettings=mergeDesktopSettings(await r.json());
+        const runtimeBase=(desktopSettings.runtime.hostedApiBase||'').replace(/\/+$/,'');
+        if(desktopSettings.runtime.backendMode==='hosted' && runtimeBase){
+          localStorage.setItem('openflow.runtimeApiBase',runtimeBase);
+        }else{
+          localStorage.removeItem('openflow.runtimeApiBase');
+        }
+        localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+        return;
+      }
+    }catch{}
+  }
+  try{
+    const cached=JSON.parse(localStorage.getItem(DESKTOP_SETTINGS_STORAGE_KEY)||'null');
+    if(cached){
+      desktopSettings=mergeDesktopSettings(cached);
+      const runtimeBase=(desktopSettings.runtime.hostedApiBase||'').replace(/\/+$/,'');
+      if(desktopSettings.runtime.backendMode==='hosted' && runtimeBase){
+        localStorage.setItem('openflow.runtimeApiBase',runtimeBase);
+      }else{
+        localStorage.removeItem('openflow.runtimeApiBase');
+      }
+    }
+  }catch{}
+}
+function settingsApiTargets(){
+  return settingsApiBaseCache ? [settingsApiBaseCache,...SETTINGS_API_CANDIDATES.filter(b=>b!==settingsApiBaseCache)] : SETTINGS_API_CANDIDATES;
+}
+async function persistSettingsRemote(payload){
+  for(const base of settingsApiTargets()){
+    try{
+      const r=await fetch(`${base}/settings`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+      if(r.ok){
+        settingsApiBaseCache=base;
+        return mergeDesktopSettings(await r.json());
+      }
+    }catch{}
+  }
+  return null;
+}
+async function loadComfyTemplatesLibrary(){
+  let loaded=[];
+  for(const base of settingsApiTargets()){
+    try{
+      const r=await fetch(`${base}/templates/comfy`);
+      if(r.ok){
+        settingsApiBaseCache=base;
+        const data=await r.json();
+        if(Array.isArray(data)){
+          loaded=data;
+          break;
+        }
+      }
+    }catch{}
+  }
+  comfyTemplatesLibrary=loaded.map(t=>({
+    id:String(t.id||''),
+    name:String(t.name||'Untitled Template'),
+    sub:`${String(t.category||'general')} · ${String(t.subcategory||'general')} · Comfy community`,
+    category:String(t.category||'').toLowerCase(),
+    sourcePath:String(t.sourcePath||''),
+    workflowRef:String(t.workflowRef||'')
+  }));
+  comfyTemplatesLoaded=true;
+  if(leftSidebar.section==='templates') renderLeftSidebar();
+}
+async function saveKeysSettings(){
+  const next={
+    entitlement:{
+      mode:document.getElementById('ks-mode').value||'community',
+      openflowToken:document.getElementById('ks-openflow-token').value||''
+    },
+    keys:{
+      openaiApiKey:document.getElementById('ks-openai').value||'',
+      anthropicApiKey:document.getElementById('ks-anthropic').value||'',
+      customAgentApiKey:document.getElementById('ks-custom-agent').value||'',
+      elevenlabsApiKey:document.getElementById('ks-eleven').value||'',
+      comfyApiBase:document.getElementById('ks-comfy-base').value||'',
+      comfyApiKey:document.getElementById('ks-comfy-key').value||''
+    },
+    runtime:{
+      backendMode:document.getElementById('ks-backend-mode').value||'local',
+      hostedApiBase:document.getElementById('ks-hosted-api-base').value||'',
+      hostedWorkspaceId:document.getElementById('ks-hosted-workspace').value||'',
+      hostedAuthToken:document.getElementById('ks-hosted-token').value||''
+    },
+    integrations:(desktopSettings.integrations&&typeof desktopSettings.integrations==='object')
+      ? desktopSettings.integrations
+      : {}
+  };
+  desktopSettings=mergeDesktopSettings(next);
+  const runtimeBase=(desktopSettings.runtime.hostedApiBase||'').replace(/\/+$/,'');
+  if(desktopSettings.runtime.backendMode==='hosted' && runtimeBase){
+    localStorage.setItem('openflow.settingsApiBase',runtimeBase);
+    localStorage.setItem('openflow.runtimeApiBase',runtimeBase);
+  }else{
+    localStorage.removeItem('openflow.runtimeApiBase');
+  }
+  localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  const remote=await persistSettingsRemote(desktopSettings);
+  if(remote){
+    desktopSettings=remote;
+    localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  }
+  showToast('performance','Saved billing + API key settings');
+  closeKeysModal();
+}
+function setPlansCycle(cycle){
+  plansCycle=cycle==='monthly'?'monthly':'yearly';
+  document.getElementById('pl-yearly').classList.toggle('on',plansCycle==='yearly');
+  document.getElementById('pl-monthly').classList.toggle('on',plansCycle==='monthly');
+  renderPlansCards();
+}
+function renderPlansCards(){
+  const grid=document.getElementById('plans-grid');
+  if(!grid) return;
+  const isYearly=plansCycle==='yearly';
+  const cards=['standard','creator','pro'].map((pid,idx)=>{
+    const p=OPENFLOW_PLAN_CATALOG[pid];
+    const pricing=p[plansCycle];
+    const active=desktopSettings.billing.plan===pid;
+    const cta=active?'Current Plan':`Subscribe to ${p.name}`;
+    const billed=isYearly?`$${pricing.price*12} billed yearly`:'Billed monthly';
+    return `<div class="pl-card">
+      <div class="pl-title">${p.name}</div>
+      <div class="pl-price">$${pricing.price} <small>USD / mo</small></div>
+      <div class="pl-bill">${billed}</div>
+      <div class="pl-pill">Solo use only - Need team workspace?</div>
+      <div class="pl-feat"><span>${isYearly?'Total yearly credits':'Monthly credits'}</span><strong>${pricing.credits.toLocaleString()}</strong></div>
+      <div class="pl-feat"><span>Max run duration</span><strong>${p.runLimit}</strong></div>
+      <div class="pl-feat"><span>${p.featureLead}</span><strong>${pid==='standard'?'Included':'Priority'}</strong></div>
+      <div class="pl-feat-sub">${p.featureDetails}</div>
+      <div class="pl-feat"><span>Hosted add node / agent</span><strong>${Number.isFinite(OPENFLOW_PLAN_NODE_LIMITS[pid])?OPENFLOW_PLAN_NODE_LIMITS[pid]:'Unlimited'}</strong></div>
+      <div class="pl-feat"><span>Openflow managed API + prompts</span><strong>Credit metered</strong></div>
+      <div class="pl-feat"><span>BYOK and marketplace nodes</span><strong>${pid==='standard'?'Partial':'Full'}</strong></div>
+      <div class="pl-feat"><span>Managed Openflow agents</span><strong>${pid==='pro'?'Unlimited':pid==='creator'?'Advanced':'Starter'}</strong></div>
+      <button class="pl-cta ${idx===1?'primary':''}" onclick="subscribePlan('${pid}')">${cta}</button>
+    </div>`;
+  });
+  grid.innerHTML=cards.join('');
+}
+function openPlansModal(){
+  closeKeysModal();
+  setPlansCycle(desktopSettings.billing.cycle||'yearly');
+  renderPlansCards();
+  document.getElementById('plans-backdrop').classList.add('open');
+}
+function closePlansModal(){
+  document.getElementById('plans-backdrop').classList.remove('open');
+}
+async function subscribePlan(planId){
+  const p=OPENFLOW_PLAN_CATALOG[planId];
+  if(!p) return;
+  const credits=(p[plansCycle]&&p[plansCycle].credits)||0;
+  const next=mergeDesktopSettings({
+    ...desktopSettings,
+    entitlement:{
+      ...desktopSettings.entitlement,
+      mode:planId==='standard'?'community':'pro'
+    },
+    billing:{
+      cycle:plansCycle,
+      plan:planId,
+      creditsTotal:credits,
+      creditsRemaining:credits
+    }
+  });
+  desktopSettings=next;
+  localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  const remote=await persistSettingsRemote(desktopSettings);
+  if(remote){
+    desktopSettings=remote;
+    localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  }
+  renderPlansCards();
+  fillKeysForm();
+  showToast('performance',`Subscribed to ${p.name} ${plansCycle} plan (${credits.toLocaleString()} credits)`);
+}
+function fillKeysForm(){
+  document.getElementById('ks-mode').value=desktopSettings.entitlement.mode||'community';
+  document.getElementById('ks-plan').value=formatPlanLabel();
+  document.getElementById('ks-credits').value=`${Number(desktopSettings.billing.creditsRemaining||0).toLocaleString()} / ${Number(desktopSettings.billing.creditsTotal||0).toLocaleString()}`;
+  document.getElementById('ks-openflow-token').value=desktopSettings.entitlement.openflowToken||'';
+  document.getElementById('ks-backend-mode').value=(desktopSettings.runtime&&desktopSettings.runtime.backendMode)||'local';
+  document.getElementById('ks-hosted-api-base').value=(desktopSettings.runtime&&desktopSettings.runtime.hostedApiBase)||'';
+  document.getElementById('ks-hosted-workspace').value=(desktopSettings.runtime&&desktopSettings.runtime.hostedWorkspaceId)||'';
+  document.getElementById('ks-hosted-token').value=(desktopSettings.runtime&&desktopSettings.runtime.hostedAuthToken)||'';
+  document.getElementById('ks-openai').value=desktopSettings.keys.openaiApiKey||'';
+  document.getElementById('ks-anthropic').value=desktopSettings.keys.anthropicApiKey||'';
+  document.getElementById('ks-custom-agent').value=desktopSettings.keys.customAgentApiKey||'';
+  document.getElementById('ks-eleven').value=desktopSettings.keys.elevenlabsApiKey||'';
+  document.getElementById('ks-comfy-base').value=desktopSettings.keys.comfyApiBase||'';
+  document.getElementById('ks-comfy-key').value=desktopSettings.keys.comfyApiKey||'';
+}
+function openKeysModal(){
+  closePlansModal();
+  fillKeysForm();
+  document.getElementById('keys-backdrop').classList.add('open');
+}
+function closeKeysModal(){
+  document.getElementById('keys-backdrop').classList.remove('open');
 }
 
 let srcPickerHub=null;
@@ -2122,6 +2938,7 @@ function filterSources(q){
 }
 
 function addSource(hubId,srcId){
+  if(!ensureNodeLimit(1)) return;
   const hub=gn(hubId);if(!hub)return;
   const src=SOURCE_TYPES.find(s=>s.id===srcId);if(!src)return;
   const nodeId=hubId+'_'+srcId+'_'+Date.now();
@@ -2133,21 +2950,23 @@ function addSource(hubId,srcId){
   const leftSlot=spokesBefore%2===0;
   const nx=leftSlot?(hub.x-220):(hub.x+24+step*120);
   const ny=leftSlot?(hub.y-24+step*110):(hub.y-150);
-  const comfyPreset = srcId==='comfyui';
+  const generationPreset = srcId==='comfyui'||srcId==='elevenlabs'||srcId==='elevenlabs_music';
+  const autoConnected = generationPreset && !isByokLocalMode();
   nodes.push({
     id:nodeId,type:'spoke',
     x:Math.round(nx),y:Math.round(ny),
     color:src.color,name:src.name,ico:src.ico,img:src.img||null,
     srcName:src.name,
-    connected:comfyPreset,
-    runs:comfyPreset?[{date:'Ready',summary:'Comfy sub-canvas attached · 1 workflow template',count:'1 wf',url:`site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(nodeId)}`}]:[],
-    sync:comfyPreset?'just now':'not connected',notifCount:0,
+    connected:autoConnected,
+    runs:autoConnected?[{date:'Ready',summary:srcId==='elevenlabs'?'ElevenLabs voiceover workflow attached · 1 voice template':srcId==='elevenlabs_music'?'ElevenLabs video-to-music workflow attached · 1 music template':'Comfy sub-canvas attached · 1 workflow template',count:'1 wf',url:`site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(nodeId)}`}]:[],
+    sync:autoConnected?'just now':'not connected',notifCount:0,
     collapsed:false
   });
   conns.push({f:nodeId,t:hubId,color:hub.color,kind:'spoke'});
   syncProjectState();
   renderAll();
-  showToast(hubId,'Added '+src.name+(comfyPreset?' — sub-canvas linked':' — click the card to connect'));
+  const dep=EXTERNAL_DEP_REQUIREMENTS[srcId];
+  showToast(hubId,'Added '+src.name+(autoConnected?' — generation workflow linked':dep&&isByokLocalMode()?` — connect ${dep.providerName} to use this node`:' — click the card to connect'));
   closeSrcPicker();
 }
 
@@ -2211,6 +3030,11 @@ function applyComfyEvent(data){
       const artifacts=Array.isArray(data.artifacts)?data.artifacts:[];
       const primary=artifacts[0]||{};
       const summary=`${job.wfName} · ${artifacts.length||1} asset${(artifacts.length||1)===1?'':'s'}`;
+      const sourceId=sourceIdForNode(node);
+      const perAsset=sourceId==='elevenlabs_music'?120:sourceId==='elevenlabs'?60:40;
+      if(isManagedPaidMode()){
+        void chargeCredits((artifacts.length||1)*perAsset);
+      }
       const row={
         date:stamp,
         summary,
@@ -2275,7 +3099,7 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='v'||e.key==='V') setMode('select');
   else if(e.key==='f'||e.key==='F') fitAll();
   else if(e.key==='Escape'){
-    desel();hideCtx();closeSrcPicker();closeRunDrawer();closeNodePicker();closeComfyEditor();
+    desel();hideCtx();closeSrcPicker();closeRunDrawer();closeNodePicker();closeComfyEditor();closeKeysModal();closePlansModal();
     document.querySelectorAll('.hub-panel.open').forEach(p=>p.classList.remove('open'));
   } else if((e.key==='Delete'||e.key==='Backspace')&&selected.size){
     selected.forEach(id=>{nodes=nodes.filter(n=>n.id!==id);conns=conns.filter(c=>c.f!==id&&c.t!==id);});
@@ -2351,8 +3175,12 @@ function initProjectPicker(){
 
 // ── INIT ──────────────────────────────────────────────────────
 initProjectPicker();
-renderAll();
-setTimeout(()=>fitAll(),120);
+Promise.resolve(loadDesktopSettings())
+  .then(()=>loadComfyTemplatesLibrary())
+  .finally(()=>{
+    renderAll();
+    setTimeout(()=>fitAll(),120);
+  });
 // Start autonomous notification loops
 setTimeout(()=>{fireAutoNotif('customer');sched('customer',11000,20000);},5000);
 setTimeout(()=>{fireAutoNotif('brand');   sched('brand',14000,24000);   },9200);

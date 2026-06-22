@@ -33,6 +33,20 @@ Optional backend URL override in `.env`:
 VITE_API_BASE=http://localhost:8790
 ```
 
+## Billing + BYOK mode (desktop)
+
+- Open the left sidebar `Openflow` tab and choose `Billing & API Keys`.
+- `Openflow Pro` mode unlocks managed/agentic features when a Pro token is set.
+- `BYOK` mode lets users run with their own provider keys (OpenAI/Anthropic/Custom Agent, ElevenLabs, Comfy).
+- Settings are stored locally and served by:
+- `GET /settings`
+- `PUT /settings`
+
+Optional Pro token verification hook:
+
+- `OPENFLOW_BILLING_VERIFY_URL`
+- `OPENFLOW_BILLING_VERIFY_SECRET`
+
 ## CI + packaging + version sync
 
 - CI workflow: `.github/workflows/ci.yml`

@@ -1,6 +1,14 @@
 import type { CanvasDocument, GenerationRun, GenerationRunDetail, WorkspaceSnapshot, WorkspaceEvent } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8790";
+function resolveApiBase() {
+  if (typeof window !== "undefined") {
+    const fromRuntime = window.localStorage.getItem("openflow.runtimeApiBase");
+    if (fromRuntime) return fromRuntime.replace(/\/+$/, "");
+  }
+  return (import.meta.env.VITE_API_BASE || "http://localhost:8790").replace(/\/+$/, "");
+}
+
+const API_BASE = resolveApiBase();
 
 export async function getSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
   const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/snapshot`);

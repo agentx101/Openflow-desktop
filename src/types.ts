@@ -4,6 +4,8 @@ export type CanvasNodeKind =
   | "brief"
   | "generation.image"
   | "generation.video"
+  | "generation.audio"
+  | "generation.music"
   | "generation.template";
 
 export type RunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
@@ -84,7 +86,7 @@ export interface GenerationArtifact {
   id: string;
   runId: string;
   stepId: string;
-  type: "image" | "video";
+  type: "image" | "video" | "audio";
   uri: string;
   previewUri: string;
   metadata: Record<string, unknown>;

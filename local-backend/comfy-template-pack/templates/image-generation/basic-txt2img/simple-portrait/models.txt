@@ -1,0 +1,18 @@
+# Required Models for Simple Portrait Generator
+
+## Checkpoint Models (place in ComfyUI/models/checkpoints/)
+- realisticVisionV51_v51VAE.safetensors
+  - Download: https://civitai.com/models/4201/realistic-vision-v51
+  - Size: ~5.1 GB
+  - Description: High-quality realistic portrait generation model
+  - Version: V5.1 with baked-in VAE
+
+## Alternative Models (compatible replacements)
+- Any Stable Diffusion 1.5 based checkpoint will work
+- For better results, use models trained on portrait/people datasets
+- SDXL models require changing resolution to 1024x1024
+
+## Notes
+- The workflow includes VAE decoding, so models with built-in VAE are recommended
+- For models without built-in VAE, you may need to load a separate VAE file
+- Test with different checkpoints to find your preferred style

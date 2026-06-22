@@ -1,0 +1,95 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 156680208700286,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": ["4", 0],
+      "positive": ["15", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "v1-5-pruned-emaonly.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "5": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage"
+  },
+  "6": {
+    "inputs": {
+      "text": "beautiful blue sky with white clouds",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "7": {
+    "inputs": {
+      "text": "text, watermark",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    },
+    "class_type": "VAEDecode"
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": ["8", 0]
+    },
+    "class_type": "SaveImage"
+  },
+  "12": {
+    "inputs": {
+      "text": "green grass field with flowers",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "13": {
+    "inputs": {
+      "conditioning": ["6", 0],
+      "width": 512,
+      "height": 256,
+      "x": 0,
+      "y": 0,
+      "strength": 1.0
+    },
+    "class_type": "ConditioningSetArea"
+  },
+  "14": {
+    "inputs": {
+      "conditioning": ["12", 0],
+      "width": 512,
+      "height": 256,
+      "x": 0,
+      "y": 256,
+      "strength": 1.0
+    },
+    "class_type": "ConditioningSetArea"
+  },
+  "15": {
+    "inputs": {
+      "conditioning_1": ["13", 0],
+      "conditioning_2": ["14", 0]
+    },
+    "class_type": "ConditioningCombine"
+  }
+}

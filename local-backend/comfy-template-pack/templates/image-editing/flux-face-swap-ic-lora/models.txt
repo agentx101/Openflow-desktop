@@ -1,0 +1,7 @@
+unet/flux1-fill-dev-Q8_0.gguf
+style_models/flux1-redux-dev.safetensors
+clip_vision/sigclip_vision_patch14_384.safetensors
+clip/clip_l.safetensors
+clip/t5xxl_fp16.safetensors
+vae/ae.safetensors
+loras/comfyui_portrait_lora64.safetensors

@@ -1,0 +1,70 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 156680208700286,
+      "steps": 20,
+      "cfg": 2.5,
+      "sampler_name": "euler",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": ["4", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "svd_xt.safetensors"
+    },
+    "class_type": "ImageOnlyCheckpointLoader"
+  },
+  "5": {
+    "inputs": {
+      "width": 1024,
+      "height": 576,
+      "video_frames": 14,
+      "batch_size": 1
+    },
+    "class_type": "SVD_img2vid_Conditioning"
+  },
+  "6": {
+    "inputs": {
+      "conditioning": ["5", 0],
+      "image": ["10", 0]
+    },
+    "class_type": "SVD_img2vid_Conditioning"
+  },
+  "7": {
+    "inputs": {
+      "conditioning": ["5", 1]
+    },
+    "class_type": "VideoLinearCFGGuidance"
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    },
+    "class_type": "VAEDecode"
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": ["8", 0],
+      "format": "image/webp",
+      "lossless": false,
+      "quality": 80,
+      "method": "default"
+    },
+    "class_type": "SaveAnimatedWEBP"
+  },
+  "10": {
+    "inputs": {
+      "image": "example.jpg",
+      "choose file to upload": "image"
+    },
+    "class_type": "LoadImage"
+  }
+}
