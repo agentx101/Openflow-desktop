@@ -63,6 +63,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   color:#fff;font:500 14px var(--sans);padding:0 12px;outline:none;
 }
 .of-search::placeholder{color:#8b95a8}
+.of-quick-btn{
+  width:38px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);color:#d4ddef;display:none;align-items:center;justify-content:center;cursor:pointer
+}
+.of-quick-btn svg{width:17px;height:17px;stroke-width:1.9}
+.of-quick-btn.show{display:flex}
 .of-chip-row{padding:10px 16px 8px;display:flex;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
 .of-chip{
   border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#c8d2e1;border-radius:10px;
@@ -78,6 +84,43 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .of-item-title{font:600 14px var(--sans);color:#fff;line-height:1.3}
 .of-item-sub{font:500 11px var(--sans);color:#aeb9cc;margin-top:3px;line-height:1.35}
 .of-empty{padding:10px 4px;color:#8f9cb2;font:500 12px var(--sans)}
+.of-conn-row{
+  border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);border-radius:10px;padding:10px 10px;
+  display:grid;grid-template-columns:16px 18px 1fr auto;gap:8px;align-items:center
+}
+.of-conn-row:hover{background:rgba(255,255,255,.06)}
+.of-conn-row svg{width:16px;height:16px;stroke:#cfd8e8;stroke-width:1.9;fill:none}
+.of-conn-main{display:grid;gap:2px}
+.of-conn-title{font:600 14px var(--sans);color:#fff;line-height:1.2}
+.of-conn-sub{font:500 11px var(--sans);color:#9fabc0;line-height:1.35}
+.of-conn-badge{
+  border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);
+  color:#dbe5f7;border-radius:999px;padding:3px 8px;font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.04em
+}
+.of-conn-badge.connected{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.18);color:#b7ffe1}
+.of-conn-badge.attention{border-color:rgba(245,158,11,.52);background:rgba(245,158,11,.18);color:#ffe2ad}
+.of-conn-badge.disconnected{border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.14);color:#ffd0d0}
+.of-conn-badge.managed{border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.15);color:#cde2ff}
+.of-conn-right{display:flex;gap:6px;align-items:center}
+.of-conn-btn{
+  height:26px;padding:0 8px;border-radius:7px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);
+  color:#e7eefb;font:600 10px var(--sans);cursor:pointer
+}
+.of-conn-btn.primary{border-color:rgba(91,141,236,.45);background:rgba(45,107,224,.22);color:#f1f6ff}
+.of-node-folder{
+  border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);border-radius:10px;padding:9px 10px;
+  display:grid;grid-template-columns:16px 18px 1fr;gap:8px;align-items:center
+}
+.of-node-folder:hover{background:rgba(255,255,255,.06)}
+.of-node-folder svg{width:16px;height:16px;stroke:#cfd8e8;stroke-width:1.9;fill:none}
+.of-node-folder-title{font:600 13px var(--sans);color:#fff}
+.of-node-item{
+  margin-left:28px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);border-radius:9px;padding:8px 9px;
+  display:grid;grid-template-columns:16px 1fr;gap:8px;align-items:center
+}
+.of-node-item svg{width:15px;height:15px;stroke:#b8c5db;stroke-width:1.8;fill:none}
+.of-node-item-title{font:600 12px var(--sans);color:#e8eefb;line-height:1.2}
+.of-node-item-sub{font:500 10px var(--sans);color:#9ba9be;line-height:1.35;margin-top:2px}
 .tb-logo{height:20px;opacity:.9;margin-right:10px;flex-shrink:0}
 .tb-slash{color:var(--ink-600);font-size:15px;margin-right:10px}
 .tb-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink-300);letter-spacing:-.01em}
@@ -92,6 +135,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .tbtn kbd{font:9px var(--mono);color:var(--ink-600);background:rgba(255,255,255,.05);
   padding:1px 4px;border-radius:3px;border:1px solid rgba(255,255,255,.07)}
 .tb-r{margin-left:auto;display:flex;align-items:center;gap:8px}
+.tb-runtime{
+  display:flex;align-items:center;gap:2px;padding:2px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)
+}
+.tb-rt-btn{
+  height:24px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--ink-300);
+  font:700 10px var(--sans);cursor:pointer
+}
+.tb-rt-btn.on{background:rgba(45,107,224,.2);color:#e8f0ff}
 #zdisplay{font:11px var(--mono);color:var(--ink-500)}
 .tb-project{
   background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
@@ -553,6 +605,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .rd-close:hover{background:rgba(255,255,255,.08);color:#fff}
 .rd-close svg{width:12px;height:12px;stroke-width:2}
 .rd-body{flex:1;overflow-y:auto;max-height:340px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent}
+.rd-prompt{
+  margin:10px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.03);overflow:hidden;
+}
+.rd-prompt-head{
+  padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;gap:8px
+}
+.rd-prompt-title{font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#fff}
+.rd-prompt-chip{
+  border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:2px 7px;
+  font:700 9px var(--mono);color:#e3ebfa;background:rgba(255,255,255,.05)
+}
+.rd-prompt-body{padding:9px 10px;display:grid;gap:7px}
+.rd-prompt-line{font:500 10px/1.45 var(--sans);color:#bdc8db}
+.rd-prompt-line strong{color:#fff;font-weight:700}
+.rd-prompt-list{display:grid;gap:5px}
+.rd-prompt-item{font:500 9.5px/1.35 var(--sans);color:#aebbd2}
+.rd-prompt-item code{font:600 9px var(--mono);color:#fff}
 /* Reddit mock */
 .mk-rt-head{background:#FF4500;padding:8px 12px;display:flex;align-items:center;gap:6px}
 .mk-rt-logo{font:900 10px sans-serif;color:#fff;letter-spacing:.02em}
@@ -730,6 +799,24 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .ce-close:hover{background:rgba(255,255,255,.12)}
 .ce-close svg{width:12px;height:12px;stroke-width:2.2}
 #comfy-editor-frame{width:100%;height:calc(100% - 40px);border:0;display:block;background:#0a0e14}
+.comfy-unavail{
+  position:fixed;inset:0;z-index:546;display:none;background:rgba(7,11,18,.82);backdrop-filter:blur(3px);
+}
+.comfy-unavail.open{display:block}
+.cu-modal{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(560px,92vw);border-radius:14px;border:1px solid rgba(255,255,255,.15);
+  background:#0f1521;box-shadow:0 26px 90px rgba(0,0,0,.68);padding:16px;
+}
+.cu-title{font:700 16px var(--display);color:#fff}
+.cu-sub{margin-top:6px;color:#b8c6da;font:500 12px/1.45 var(--sans)}
+.cu-base{margin-top:10px;color:#8ea2bf;font:500 11px var(--mono);word-break:break-all}
+.cu-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.cu-btn{
+  height:34px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06);color:#dce7f8;font:600 11px var(--sans);cursor:pointer
+}
+.cu-btn.primary{background:rgba(45,107,224,.24);border-color:rgba(91,141,236,.45);color:#e9f1ff}
 
 #keys-backdrop{
   position:fixed;inset:0;z-index:540;display:none;background:rgba(8,12,20,.76);backdrop-filter:blur(3px);
@@ -836,6 +923,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
     </button>
   </div>
   <div class="tb-r">
+    <div class="tb-runtime" title="Desktop runtime mode">
+      <button class="tb-rt-btn" id="rt-local" onclick="setRuntimeMode('local')">Local</button>
+      <button class="tb-rt-btn" id="rt-hosted" onclick="setRuntimeMode('hosted')">Hosted</button>
+    </div>
     <select id="project-picker" class="tb-project"></select>
     <span id="zdisplay">100%</span>
   </div>
@@ -854,6 +945,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
     <button class="of-tab" id="of-tab-workflows" title="Workflows" onclick="openLeftSection('workflows')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h6v4H4zM14 14h6v4h-6zM14 4h6v4h-6zM4 14h6v4H4z"/><path d="M10 6h4M10 16h4"/></svg>
     </button>
+    <button class="of-tab" id="of-tab-connections" title="Connections" onclick="openLeftSection('connections')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 13a5 5 0 0 1 0-7l1.5-1.5a5 5 0 1 1 7 7L17 13"/><path d="M14 11a5 5 0 0 1 0 7L12.5 19.5a5 5 0 1 1-7-7L7 11"/></svg>
+    </button>
     <button class="of-tab" id="of-tab-templates" title="Templates" onclick="openLeftSection('templates')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>
     </button>
@@ -864,7 +958,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   <div class="of-panel" id="of-panel">
     <div class="of-panel-inner">
       <div class="of-head"><div class="of-title" id="of-title">Openflow</div></div>
-      <div class="of-search-row"><input id="of-search" class="of-search" placeholder="Search..." oninput="onLeftSearch(this.value)"></div>
+      <div class="of-search-row">
+        <input id="of-search" class="of-search" placeholder="Search..." oninput="onLeftSearch(this.value)">
+        <button id="of-refresh" class="of-quick-btn" title="Refresh connections" onclick="refreshConnectionsNow()">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <button id="of-settings" class="of-quick-btn" title="Connection settings" onclick="openKeysModal()">
+          <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.82 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.35 1.7 1.7 0 0 0-1.04 1.56V22a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.35l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.66 8.9a1.7 1.7 0 0 0-.35-1.88l-.06-.06A2 2 0 0 1 7.08 4.1l.06.06a1.7 1.7 0 0 0 1.88.35H9a1.7 1.7 0 0 0 1.03-1.56V2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1.04 1.56h.01a1.7 1.7 0 0 0 1.88-.35l.06-.06a2 2 0 1 1 2.82 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.9V9a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.1A1.7 1.7 0 0 0 19.4 15z"/></svg>
+        </button>
+      </div>
       <div class="of-chip-row" id="of-chip-row"></div>
       <div class="of-list" id="of-list"></div>
     </div>
@@ -964,6 +1066,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
     <iframe id="comfy-editor-frame" title="Comfy Editor"></iframe>
   </div>
 </div>
+<div class="comfy-unavail" id="comfy-unavail" onclick="if(event.target===this)closeComfyUnavailableModal()">
+  <div class="cu-modal">
+    <div class="cu-title">ComfyUI Is Not Reachable</div>
+    <div class="cu-sub">Openflow could not reach your Comfy endpoint. Install Comfy locally or connect a cloud endpoint in settings.</div>
+    <div class="cu-base" id="cu-base"></div>
+    <div class="cu-actions">
+      <button class="cu-btn" onclick="closeComfyUnavailableModal()">Cancel</button>
+      <button class="cu-btn" onclick="openComfyInstallDocs()">Download & Install ComfyUI</button>
+      <button class="cu-btn primary" onclick="openComfyCloudSettings()">Connect Cloud Endpoint</button>
+    </div>
+  </div>
+</div>
 
 <!-- BILLING + API KEYS -->
 <div id="keys-backdrop" onclick="if(event.target===this)closeKeysModal()">
@@ -1057,12 +1171,73 @@ function lastBlob(msgs){
 }
 
 const COMFY_UI_EMBED_BASE='http://127.0.0.1:8188';
+let comfyProbeState={base:'',ok:null,at:0};
+let comfyModalShown=false;
+function currentComfyBase(){
+  const fromSettings=String((desktopSettings&&desktopSettings.keys&&desktopSettings.keys.comfyApiBase)||'').trim().replace(/\/+$/,'');
+  return fromSettings||COMFY_UI_EMBED_BASE;
+}
 function comfyEmbedSrc(nodeId,mode='mini'){
   const qp=`openflowNode=${encodeURIComponent(nodeId||'')}&openflowMode=${encodeURIComponent(mode)}&ofv=20260620b`;
-  return `${COMFY_UI_EMBED_BASE}/?${qp}`;
+  return `${currentComfyBase()}/?${qp}`;
 }
 function comfyFallbackSrc(nodeId,mode='mini'){
   return `site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(nodeId||'')}${mode==='editor'?'&editor=1':''}`;
+}
+async function probeComfyReachable(force=false){
+  const base=currentComfyBase();
+  const now=Date.now();
+  if(!force && comfyProbeState.base===base && (now-comfyProbeState.at)<15000 && comfyProbeState.ok!==null){
+    return comfyProbeState.ok;
+  }
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),2600);
+  let ok=false;
+  try{
+    await fetch(`${base}/`,{method:'GET',mode:'no-cors',cache:'no-store',signal:controller.signal});
+    ok=true;
+  }catch{
+    ok=false;
+  }finally{
+    clearTimeout(timer);
+  }
+  comfyProbeState={base,ok,at:Date.now()};
+  return ok;
+}
+async function refreshComfyAvailability(showModalOnFail=false,force=false){
+  const ok=await probeComfyReachable(force);
+  if(!ok && showModalOnFail && !comfyModalShown){
+    comfyModalShown=true;
+    openComfyUnavailableModal();
+  }
+  return ok;
+}
+function openComfyUnavailableModal(){
+  const bd=document.getElementById('comfy-unavail');
+  const base=document.getElementById('cu-base');
+  if(base) base.textContent=`Endpoint: ${currentComfyBase()}`;
+  if(bd) bd.classList.add('open');
+}
+function closeComfyUnavailableModal(){
+  const bd=document.getElementById('comfy-unavail');
+  if(bd) bd.classList.remove('open');
+  comfyModalShown=false;
+}
+function openComfyInstallDocs(){
+  window.open('https://docs.comfy.org/get_started/introduction','_blank','noopener');
+}
+function openComfyCloudSettings(){
+  closeComfyUnavailableModal();
+  openKeysModal();
+  setTimeout(()=>{
+    const input=document.getElementById('ks-comfy-base');
+    if(input){
+      const current=String(input.value||'').trim();
+      if(!current) input.value='https://api.comfy.org';
+      input.focus();
+      input.select&&input.select();
+    }
+  },30);
 }
 let comfyGenSeq=1;
 const DESKTOP_SETTINGS_STORAGE_KEY='openflow.desktop.settings.v1';
@@ -1271,7 +1446,7 @@ let dragging=null,panStart=null,ctxId=null,wasDragged=false;
 let connDrag=null;
 let linkDraw=null;
 let nodePickerCtx=null;
-let leftSidebar={section:'openflow',query:'',open:true,templateFilter:'saved'};
+let leftSidebar={section:'openflow',query:'',open:true,templateFilter:'saved',connectionFilter:'all',nodeFilter:'all'};
 
 const PROJECTS=[
   {id:'motion-golden',name:'Motion Canvas · Golden Demo'},
@@ -1284,17 +1459,77 @@ const projectStore={
   'ugc-sprint':{nodes:nodes.map(n=>({...n,x:n.x+(n.type==='hub'?20:0),y:n.y+(n.type==='hub'?20:0)})),conns:conns.map(c=>({...c}))},
   'retention-lab':{nodes:nodes.map(n=>({...n,x:n.x-(n.type==='hub'?20:0),y:n.y-(n.type==='hub'?20:0)})),conns:conns.map(c=>({...c}))},
 };
+const UNDO_LIMIT=80;
+let undoStack=[];
+let suppressUndoSnapshot=false;
+
+function deepClone(v){
+  if(typeof structuredClone==='function') return structuredClone(v);
+  return JSON.parse(JSON.stringify(v));
+}
+function snapshotSignature(snapshot){
+  return JSON.stringify({nodes:snapshot.nodes,conns:snapshot.conns});
+}
+function snapshotCurrentProject(){
+  return {nodes:deepClone(nodes),conns:deepClone(conns)};
+}
+function pushUndoSnapshot(){
+  if(suppressUndoSnapshot) return;
+  const snap=snapshotCurrentProject();
+  const sig=snapshotSignature(snap);
+  const last=undoStack[undoStack.length-1];
+  if(last&&last.sig===sig) return;
+  undoStack.push({...snap,sig});
+  if(undoStack.length>UNDO_LIMIT) undoStack.shift();
+}
+function resetUndoStack(){
+  const snap=snapshotCurrentProject();
+  undoStack=[{...snap,sig:snapshotSignature(snap)}];
+}
+function undoLastAction(){
+  const current=snapshotCurrentProject();
+  const currentSig=snapshotSignature(current);
+  const last=undoStack[undoStack.length-1];
+  if(!last){
+    resetUndoStack();
+    showToast('performance','Nothing to undo');
+    return;
+  }
+  if(last.sig!==currentSig){
+    undoStack.push({...current,sig:currentSig});
+  }
+  if(undoStack.length<=1){
+    showToast('performance','Nothing to undo');
+    return;
+  }
+  undoStack.pop();
+  const prev=undoStack[undoStack.length-1];
+  if(!prev){
+    showToast('performance','Nothing to undo');
+    return;
+  }
+  suppressUndoSnapshot=true;
+  nodes=deepClone(prev.nodes);
+  conns=deepClone(prev.conns);
+  selected.clear();
+  syncProjectState();
+  suppressUndoSnapshot=false;
+  renderAll();
+  showToast('performance','Undid last action');
+}
 
 function syncProjectState(){
-  projectStore[currentProjectId]={nodes:nodes,conns:conns};
+  projectStore[currentProjectId]={nodes:deepClone(nodes),conns:deepClone(conns)};
+  pushUndoSnapshot();
 }
 
 function switchProject(pid){
   syncProjectState();
   currentProjectId=pid;
   const state=projectStore[pid];
-  nodes=state.nodes;
-  conns=state.conns;
+  nodes=deepClone(state.nodes);
+  conns=deepClone(state.conns);
+  resetUndoStack();
   desel();
   renderAll();
   setTimeout(()=>fitAll(),40);
@@ -1404,12 +1639,18 @@ function mkChatPanel(n){
   <div class="brain-nodes-lbl">Add Nodes To ${esc(n.name)}</div>
   <div class="brain-node-grid">${brainNodeButtons(n.id)}</div>
 </div>
+<div style="padding:0 12px 12px">
+  <button class="spoke-connect-btn" style="width:100%;background:${n.color};color:#000;opacity:${n.flowState==='running'?'.7':'1'}"
+    ${n.flowState==='running'?'disabled':''}
+    onclick="event.stopPropagation();runHubFlow('${n.id}')">${n.flowState==='running'?'Running Flow…':'Run Hub Flow'}</button>
+</div>
 ${mkPort(n)}`;
 }
 
 function mkSpoke(n){
   const expanded = n.collapsed === false;
   const isComfy = (n.srcName==='Comfy UI Node') || (n.name==='Comfy UI Node') || String(n.id).includes('_comfyui_');
+  const isAgent = isAgentNode(n);
   const badge = `<div class="node-badge${n.notifCount===0?' gone':''}" id="badge-${n.id}">${n.notifCount}</div>`;
   const icoHtml = n.img
     ? `<img src="${n.img}" style="width:14px;height:14px;object-fit:contain;border-radius:2px;display:block">`
@@ -1439,6 +1680,11 @@ function mkSpoke(n){
       </button>
     </div>${comfyMini}${comfyBtn}`;
   } else {
+    const runBtn=isAgent
+      ? `<button class="spoke-connect-btn" style="margin-bottom:8px;background:${n.color};color:#000;opacity:${n.runState==='running'?'.7':'1'}"
+          ${n.runState==='running'?'disabled':''}
+          onclick="event.stopPropagation();runAgentNode('${n.id}')">${n.runState==='running'?'Running…':'Run Agent'}</button>`
+      : '';
     const runs = (n.runs||[]).map((r,ri)=>`
       <div class="run-card" onclick="event.stopPropagation();openRunPreview('${n.id}',${ri},event)">
         <div class="run-card-body">
@@ -1448,7 +1694,7 @@ function mkSpoke(n){
         <div class="run-count">${esc(r.count)}</div>
         <svg class="run-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7,7 17,7 17,17"/></svg>
       </div>`).join('');
-    body = `${comfyMini}${comfyBtn}<div class="spoke-runs">${runs}</div>
+    body = `${comfyMini}${comfyBtn}${runBtn}<div class="spoke-runs">${runs}</div>
       <div class="spoke-foot"><span class="spoke-sync"></span>${esc(n.sync)}</div>`;
   }
 
@@ -1488,6 +1734,8 @@ function mkOutput(n){
       }</div>`
     : '';
   const openBtn=isAsset?`<button class="out-open-btn" onclick="openComfyEditor('assetgen',event)">Open Comfy UI</button>`:'';
+  const runFlowBtn=`<button class="out-open-btn" style="margin-top:8px;opacity:${n.flowState==='running'?'.7':'1'}" ${n.flowState==='running'?'disabled':''}
+    onclick="event.stopPropagation();runOutputFlow('${n.id}')">${n.flowState==='running'?'Running Flow…':'Run Upstream Flow'}</button>`;
   const cardCls=n.id==='assetgen'?'output-card asset-big':'output-card';
   return `
 <div class="${cardCls}">
@@ -1500,6 +1748,7 @@ function mkOutput(n){
     <span>${esc(statusTxt)}</span>
   </div>
   ${openBtn}
+  ${runFlowBtn}
   ${runList}
 </div>`;
 }
@@ -1593,7 +1842,7 @@ function refreshNode(id){
 }
 
 // ── RUN PREVIEW DRAWER ────────────────────────────────────────
-function openRunPreview(nodeId, runIdx, evt){
+async function openRunPreview(nodeId, runIdx, evt){
   const n=gn(nodeId); if(!n) return;
   const r=n.runs[runIdx]; if(!r) return;
   // Header
@@ -1606,7 +1855,7 @@ function openRunPreview(nodeId, runIdx, evt){
   const extLink=document.getElementById('rd-ext');
   extLink.href=r.url||'#'; extLink.textContent='Open in '+platName(n)+' ↗';
   // Body
-  document.getElementById('rd-body').innerHTML=buildMockUI(n,r);
+  document.getElementById('rd-body').innerHTML=buildMockUI(n,r)+renderPromptPanelLoading();
   // Position in world coordinates — to the right of the spoke node
   const drawer=document.getElementById('run-drawer');
   drawer.classList.remove('open');
@@ -1616,6 +1865,11 @@ function openRunPreview(nodeId, runIdx, evt){
   drawer.style.left = wx + 'px';
   drawer.style.top  = wy + 'px';
   requestAnimationFrame(()=>drawer.classList.add('open'));
+  const reqId=++runDrawerReqId;
+  const promptCtx=await loadPromptContextForNode(n);
+  if(reqId!==runDrawerReqId) return;
+  const promptEl=document.getElementById('rd-prompt');
+  if(promptEl) promptEl.outerHTML=renderPromptPanel(promptCtx);
 }
 function closeRunDrawer(){document.getElementById('run-drawer').classList.remove('open');}
 function platName(n){
@@ -1626,6 +1880,9 @@ function platName(n){
   return n.name;
 }
 function buildMockUI(n,r){
+  const sid=sourceIdForNode(n);
+  if(sid==='persona_needs_emotions') return mockPersona(n,r);
+  if(sid==='pne_framework') return mockPne(n,r);
   const img=n.img||'';
   if(img.includes('reddit')) return mockReddit(n,r);
   if(img.includes('ads.google')) return mockGAds(n,r);
@@ -1633,8 +1890,103 @@ function buildMockUI(n,r){
   if(n.id==='pew') return mockPew(n,r);
   return mockGeneric(n,r);
 }
+function renderPromptPanelLoading(){
+  return `<div class="rd-prompt" id="rd-prompt">
+    <div class="rd-prompt-head">
+      <div class="rd-prompt-title">Prompt Pack</div>
+      <div class="rd-prompt-chip">Loading…</div>
+    </div>
+    <div class="rd-prompt-body">
+      <div class="rd-prompt-line">Loading prompt metadata for this node.</div>
+    </div>
+  </div>`;
+}
+function renderPromptPanel(ctx){
+  if(!ctx) return `<div class="rd-prompt" id="rd-prompt"><div class="rd-prompt-head"><div class="rd-prompt-title">Prompt Pack</div><div class="rd-prompt-chip">Unavailable</div></div><div class="rd-prompt-body"><div class="rd-prompt-line">No prompt mapping found for this node.</div></div></div>`;
+  if(ctx.gated) return `<div class="rd-prompt" id="rd-prompt"><div class="rd-prompt-head"><div class="rd-prompt-title">Prompt Pack</div><div class="rd-prompt-chip">Paid</div></div><div class="rd-prompt-body"><div class="rd-prompt-line"><strong>Access gated.</strong> Prompt packs require Openflow Pro or BYOK keys.</div></div></div>`;
+  const refs=(ctx.node&&ctx.node.promptAssets)||[];
+  const refRows=refs.slice(0,6).map(p=>`<div class="rd-prompt-item"><code>${esc(p)}</code></div>`).join('');
+  const refTail=refs.length>6?`<div class="rd-prompt-item">+${refs.length-6} more references</div>`:'';
+  const gen=ctx.generation||null;
+  return `<div class="rd-prompt" id="rd-prompt">
+    <div class="rd-prompt-head">
+      <div class="rd-prompt-title">Prompt Pack</div>
+      <div class="rd-prompt-chip">${esc(ctx.blueprintId||'node')}</div>
+    </div>
+    <div class="rd-prompt-body">
+      ${gen?`<div class="rd-prompt-line"><strong>Provider:</strong> ${esc(gen.provider||'')}</div>`:''}
+      ${gen?`<div class="rd-prompt-line"><strong>Model directive:</strong> ${esc(gen.modelPromptDirective||'')}</div>`:''}
+      <div class="rd-prompt-line"><strong>Prompt sources:</strong> ${refs.length}</div>
+      <div class="rd-prompt-list">${refRows||'<div class="rd-prompt-item">No source references mapped.</div>'}${refTail}</div>
+    </div>
+  </div>`;
+}
+function blueprintIdForCanvasNode(n){
+  if(n&&n.config&&n.config.blueprintId) return String(n.config.blueprintId);
+  const sid=sourceIdForNode(n);
+  if(sid&&BLUEPRINT_BY_SOURCE[sid]) return BLUEPRINT_BY_SOURCE[sid];
+  if(n&&n.id&&BLUEPRINT_BY_SOURCE[n.id]) return BLUEPRINT_BY_SOURCE[n.id];
+  return '';
+}
+async function fetchApiJsonFlexible(path){
+  for(const base of settingsApiTargets()){
+    try{
+      const r=await fetch(`${base}${path}`,{headers:{...apiAuthHeaders()}});
+      if(r.ok){
+        settingsApiBaseCache=base;
+        return {ok:true,status:r.status,data:await r.json()};
+      }
+      if(r.status===402||r.status===404){
+        settingsApiBaseCache=base;
+        let body={};
+        try{body=await r.json();}catch{}
+        return {ok:false,status:r.status,data:body};
+      }
+    }catch{}
+  }
+  return {ok:false,status:0,data:{error:'API unavailable'}};
+}
+async function loadPromptContextForNode(n){
+  const blueprintId=blueprintIdForCanvasNode(n);
+  if(!blueprintId) return null;
+  let nodeMeta=promptNodeCache[blueprintId]||null;
+  if(!nodeMeta){
+    const nodeRes=await fetchApiJsonFlexible(`/prompts/nodes/${encodeURIComponent(blueprintId)}`);
+    if(nodeRes.status===402) return {gated:true,blueprintId};
+    if(!nodeRes.ok) return {blueprintId,node:null,generation:null};
+    nodeMeta=nodeRes.data||null;
+    promptNodeCache[blueprintId]=nodeMeta;
+  }
+  let generationMeta=null;
+  if(/^gen_/.test(blueprintId)){
+    const sid=sourceIdForNode(n);
+    const workflowRef=workflowRefForNode(n,sid);
+    const provider=blueprintId.includes('gen_fal_')?'fal':'comfy';
+    const model=((n&&n.config&&n.config.params&&n.config.params.model)||'');
+    const genKey=`${blueprintId}::${workflowRef}::${provider}::${model}`;
+    generationMeta=promptGenerationCache[genKey]||null;
+    if(!generationMeta){
+      const qs=new URLSearchParams({nodeId:blueprintId,workflowRef,provider,model:String(model||'')}).toString();
+      const genRes=await fetchApiJsonFlexible(`/prompts/generation?${qs}`);
+      if(genRes.ok){
+        generationMeta=genRes.data||null;
+        promptGenerationCache[genKey]=generationMeta;
+      }
+    }
+  }
+  return {blueprintId,node:nodeMeta,generation:generationMeta};
+}
 function mockReddit(n,r){
-  const posts=[
+  const liveFindings=Array.isArray(r&&r.data&&r.data.findings)?r.data.findings:[];
+  const livePosts=liveFindings.slice(0,6).map(f=>({
+    sub:`r/${f.subreddit||'all'}`,
+    title:String(f.sourceTitle||f.text||'Reddit finding').slice(0,120),
+    votes:String(f.score||0),
+    comments:'—',
+    tag:(f.type==='comment'?'Comment':'Post'),
+    tagColor:f.type==='comment'?'#0DD3BB':'#FF4500'
+  }));
+  const posts=livePosts.length?livePosts:[
     {sub:'r/SkincareAddiction',title:'"Vaseline as a moisturiser — genuinely underrated or just hype?"',votes:'2.4k',comments:'312',tag:'Discussion',tagColor:'#FF4500'},
     {sub:'r/beauty',title:'"Why does Vaseline feel so different from CeraVe? Skin feels amazing"',votes:'1.1k',comments:'189',tag:'Review',tagColor:'#0DD3BB'},
     {sub:'r/MakeupAddiction',title:'"The slugging trend is actually just… Vaseline. We been knew."',votes:'876',comments:'94',tag:'Trend',tagColor:'#FF585B'},
@@ -1738,6 +2090,31 @@ function mockGeneric(n,r){
     ${rows.join('')}
   </div>`;
 }
+function mockPersona(n,r){
+  const items=Array.isArray(r&&r.data&&r.data.items)?r.data.items:[];
+  return `<div style="padding:10px 12px 12px">
+    <div class="mk-gen-bar"><span class="mk-gen-brand">Persona + Needs + Emotions</span></div>
+    <div style="padding:8px 2px 10px;font:9px sans-serif;color:var(--ink-500)">${esc(r.summary||'No summary')}</div>
+    ${items.length?items.slice(0,8).map((it,idx)=>`<div style="border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 9px;margin-bottom:8px;background:rgba(255,255,255,.02)">
+      <div style="font:700 10px sans-serif;color:#fff">${idx+1}. ${esc(it.persona||'Persona')}</div>
+      <div style="font:9px/1.45 sans-serif;color:#D5DBE7;margin-top:4px"><strong>Need:</strong> ${esc(it.need||'')}</div>
+      <div style="font:9px/1.45 sans-serif;color:#D5DBE7"><strong>Emotion:</strong> ${esc(it.emotion||'')}</div>
+    </div>`).join(''):`<div style="font:9px sans-serif;color:var(--ink-500)">No PNE rows found.</div>`}
+  </div>`;
+}
+function mockPne(n,r){
+  const combos=Array.isArray(r&&r.data&&r.data.combos)?r.data.combos:[];
+  return `<div style="padding:10px 12px 12px">
+    <div class="mk-gen-bar"><span class="mk-gen-brand">PNE Framework Matrix</span></div>
+    <div style="padding:8px 2px 10px;font:9px sans-serif;color:var(--ink-500)">${esc(r.summary||'No summary')}</div>
+    <div style="display:grid;gap:7px">
+      ${combos.length?combos.slice(0,12).map((it,idx)=>`<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 9px;background:rgba(255,255,255,.02)">
+        <div style="font:9.5px/1.35 sans-serif;color:#fff">${idx+1}. ${esc(it.persona||'Persona')} → ${esc(it.need||'Need')} → ${esc(it.emotion||'Emotion')}</div>
+        <div style="font:700 9px sans-serif;color:#8FEA96">${Math.round(Number(it.confidence||0)*100)||0}%</div>
+      </div>`).join(''):`<div style="font:9px sans-serif;color:var(--ink-500)">No framework rows found.</div>`}
+    </div>
+  </div>`;
+}
 
 // ── SIMULATE CONNECT ─────────────────────────────────────────
 function simulateConnect(id){
@@ -1748,6 +2125,7 @@ function simulateConnect(id){
   setTimeout(async ()=>{
     const nodeName=n.srcName||n.name;
     const byokLocal=isByokLocalMode();
+    const sourceId=sourceIdForNode(n);
     if(byokLocal && dep){
       let secret='';
       let accountLabel='';
@@ -1789,11 +2167,27 @@ function simulateConnect(id){
         desktopSettings=remote;
         localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
       }
+      try{
+        await syncProviderConnection(sourceId,{
+          state:'connected',
+          authType:dep.authType||'api_key',
+          account:accountLabel,
+          token:secret,
+          scopes:[]
+        });
+      }catch{}
+    }else if(dep){
+      try{
+        await syncProviderConnection(sourceId,{
+          state:'connected',
+          authType:dep.authType||'api_key',
+          scopes:[]
+        });
+      }catch{}
     }
     n.connected=true;
     n.sync='just now';
     n.notifCount=1;
-    const sourceId=sourceIdForNode(n);
     const generationNode=sourceId==='comfyui'||sourceId==='elevenlabs'||sourceId==='elevenlabs_music';
     n.runs=generationNode
       ? [{date:'Ready',summary:sourceId==='elevenlabs'?'ElevenLabs voiceover workflow attached · 1 voice template':sourceId==='elevenlabs_music'?'ElevenLabs video-to-music workflow attached · 1 music template':'Comfy sub-canvas attached · 1 workflow template',count:'1 wf',url:`site/comfy-sub-canvas.html?nodeId=${encodeURIComponent(n.id)}`}]
@@ -2105,6 +2499,8 @@ const NODE_PICK_INPUT=[
   {id:'elevenlabs',name:'ElevenLabs Voice Node',desc:'Voiceover generation',type:'spoke'},
   {id:'elevenlabs_music',name:'ElevenLabs Music Node',desc:'Video-to-music generation',type:'spoke'},
   {id:'reddit',name:'Reddit Input',desc:'Community source',type:'spoke'},
+  {id:'persona_needs_emotions',name:'Persona + Needs + Emotions',desc:'PNE inference agent',type:'spoke'},
+  {id:'pne_framework',name:'PNE Framework',desc:'Persona/Need/Emotion matrix',type:'spoke'},
   {id:'ga4',name:'GA4 Input',desc:'Analytics feed',type:'spoke'},
   {id:'csv',name:'CSV Upload',desc:'Manual dataset',type:'spoke'},
 ];
@@ -2198,8 +2594,9 @@ function startPan(e){panStart={x:e.clientX,y:e.clientY,tx:tf.x,ty:tf.y};vpEl().s
 function onPan(e){if(!panStart)return;tf.x=panStart.tx+(e.clientX-panStart.x);tf.y=panStart.ty+(e.clientY-panStart.y);applyTf();}
 function onWheel(e){
   e.preventDefault();
-  // Pinch (ctrl key) or ctrl+scroll → zoom; two-finger swipe → pan
-  if(e.ctrlKey){
+  // Ctrl/Cmd + scroll (or pinch emitting ctrlKey) → zoom; otherwise two-finger swipe pans.
+  const zoomGesture = e.ctrlKey || e.metaKey;
+  if(zoomGesture){
     const f=e.deltaY<0?1.055:.955;
     const r=vpEl().getBoundingClientRect();
     const mx=e.clientX-r.left,my=e.clientY-r.top;
@@ -2377,6 +2774,8 @@ function brainSVG(nodeId,color,icon,iconBlend){
 // ── SOURCE PICKER ─────────────────────────────────────────────
 const SOURCE_TYPES=[
   {id:'reddit',   name:'Reddit',         ico:'Rd', img:'https://www.google.com/s2/favicons?domain=reddit.com&sz=64',             color:'#FF4500', desc:'Community threads'},
+  {id:'persona_needs_emotions',name:'Persona + Needs + Emotions',ico:'Pn', img:null,                                              color:'#A855F7', desc:'Persona mapping agent'},
+  {id:'pne_framework',name:'PNE Framework',ico:'Pf', img:null,                                                                     color:'#7C3AED', desc:'Persona/Need/Emotion matrix'},
   {id:'tiktok',   name:'TikTok',         ico:'Tk', img:'https://www.google.com/s2/favicons?domain=tiktok.com&sz=64',             color:'#FF0050', desc:'Video performance'},
   {id:'instagram',name:'Instagram',      ico:'In', img:'https://www.google.com/s2/favicons?domain=instagram.com&sz=64',          color:'#C13584', desc:'Engagement data'},
   {id:'youtube',  name:'YouTube',        ico:'YT', img:'https://www.google.com/s2/favicons?domain=youtube.com&sz=64',            color:'#FF0000', desc:'Video analytics'},
@@ -2422,10 +2821,10 @@ const EXTERNAL_DEP_REQUIREMENTS={
 };
 
 const BRAIN_NODE_MAP={
-  customer:['reddit','amazon','pew','survey','csv','api','comfyui','elevenlabs','elevenlabs_music'],
+  customer:['reddit','persona_needs_emotions','pne_framework','amazon','pew','survey','csv','api','comfyui','elevenlabs','elevenlabs_music'],
   brand:['notion','meta','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music'],
   presentation:['instagram','youtube','pinterest','meta','csv','comfyui','elevenlabs','elevenlabs_music'],
-  performance:['ga4perf','googleads','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music']
+  performance:['reddit','persona_needs_emotions','pne_framework','ga4perf','googleads','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music']
 };
 const LEFT_MENU_ITEMS=[
   {name:'Openflow Plans',sub:'Credit plans and Openflow-specific features',action:'open-plans'},
@@ -2451,6 +2850,9 @@ const LEFT_TEMPLATE_SETS={
 };
 let comfyTemplatesLibrary=[];
 let comfyTemplatesLoaded=false;
+let runDrawerReqId=0;
+const promptNodeCache={};
+const promptGenerationCache={};
 
 function isHostedRuntime(){
   return (desktopSettings.runtime&&desktopSettings.runtime.backendMode)==='hosted';
@@ -2498,6 +2900,14 @@ function ensureNodeLimit(nextAdds=1){
 function integrationStatusText(n){
   const dep=externalDepForNode(n);
   if(!dep) return 'No external auth required';
+  const providerKey=(dep.integrationId||dep.providerName||'').toLowerCase();
+  const conn=providerConnectionsIndex[providerKey]||null;
+  if(conn){
+    if(conn.state==='connected') return `Connected (${dep.providerName})`;
+    if(conn.state==='expired') return `${dep.providerName} token expired`;
+    if(conn.state==='scope_missing') return `${dep.providerName} scopes missing`;
+    if(conn.state==='disconnected') return `${dep.providerName} disconnected`;
+  }
   if(!isByokLocalMode()) return `Managed by Openflow (${dep.providerName})`;
   return dep.authType==='oauth' ? `Connect ${dep.providerName} account` : `Add ${dep.keyField||'API key'}`;
 }
@@ -2517,6 +2927,433 @@ async function chargeCredits(units){
     localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
   }
 }
+const AGENT_SOURCE_IDS=new Set(['reddit','persona_needs_emotions','pne_framework']);
+function isAgentNode(n){
+  return AGENT_SOURCE_IDS.has(sourceIdForNode(n));
+}
+function nodeHubId(nodeId){
+  const c=conns.find(edge=>edge.f===nodeId && gn(edge.t) && gn(edge.t).type==='hub');
+  return c?c.t:null;
+}
+function findHubSourceNode(hubId, sourceId){
+  if(!hubId) return null;
+  const candidates=conns
+    .filter(edge=>edge.t===hubId)
+    .map(edge=>gn(edge.f))
+    .filter(Boolean)
+    .filter(node=>sourceIdForNode(node)===sourceId);
+  if(!candidates.length) return null;
+  candidates.sort((a,b)=>(b.lastRunAt||0)-(a.lastRunAt||0));
+  return candidates[0];
+}
+function apiAuthHeaders(){
+  const token=((desktopSettings.runtime&&desktopSettings.runtime.hostedAuthToken)||'').trim();
+  return token ? {Authorization:`Bearer ${token}`} : {};
+}
+let providerConnectionsIndex={};
+function workspaceIdForApi(){
+  return ((desktopSettings.runtime&&desktopSettings.runtime.hostedWorkspaceId)||'').trim() || 'default-workspace';
+}
+async function loadProviderConnections(force=false){
+  const now=Date.now();
+  if(!force && providerConnectionsLoadedAt && (now-providerConnectionsLoadedAt)<15000) return providerConnectionsIndex;
+  let loaded={};
+  const workspaceId=workspaceIdForApi();
+  for(const base of settingsApiTargets()){
+    try{
+      const r=await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/connections`,{
+        headers:{...apiAuthHeaders()}
+      });
+      if(r.ok){
+        settingsApiBaseCache=base;
+        const data=await r.json();
+        if(Array.isArray(data)){
+          data.forEach(item=>{
+            const k=String(item&&item.provider||'').toLowerCase();
+            if(k) loaded[k]=item;
+          });
+          break;
+        }
+      }
+    }catch{}
+  }
+  providerConnectionsIndex=loaded;
+  providerConnectionsLoadedAt=Date.now();
+  return providerConnectionsIndex;
+}
+let providerConnectionsLoadedAt=0;
+async function callAgentEndpoint(path,payload){
+  for(const base of settingsApiTargets()){
+    try{
+      const res=await fetch(`${base}${path}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+        body:JSON.stringify(payload||{})
+      });
+      if(res.ok){
+        settingsApiBaseCache=base;
+        return await res.json();
+      }
+    }catch{}
+  }
+  throw new Error('Agent endpoint unavailable');
+}
+const BLUEPRINT_BY_SOURCE={
+  reddit:'src_reddit_scraper',
+  amazon:'src_amazon_reviews_scraper',
+  ga4perf:'src_motion_analytics_ingest',
+  meta:'src_meta_ads_metrics_ingest',
+  comfyui:'gen_comfy_workflow_runner',
+  elevenlabs:'gen_fal_image_node',
+  elevenlabs_music:'gen_fal_image_node',
+  synth:'brief_synthesizer',
+  assetgen:'creative_plan_synthesizer'
+};
+function kindForCanvasNode(n){
+  if(n.type==='hub') return 'brain_hub';
+  if(n.type==='brief') return 'brief';
+  if(n.type==='output') return 'synth';
+  const sid=sourceIdForNode(n);
+  if(sid==='comfyui') return 'generation.template';
+  if(sid==='elevenlabs') return 'generation.audio';
+  if(sid==='elevenlabs_music') return 'generation.music';
+  return 'source_connector';
+}
+function workflowRefForNode(n,sid){
+  if(sid==='comfyui') return 'comfy_image_ad_v1';
+  if(sid==='elevenlabs') return 'elevenlabs_voiceover_v1';
+  if(sid==='elevenlabs_music') return 'elevenlabs_video_to_music_v1';
+  return 'openflow_agent_v1';
+}
+function toBackendCanvasDoc(){
+  const mappedNodes=nodes.map(n=>{
+    const sid=sourceIdForNode(n);
+    const bp=(n.type==='output'&&n.id==='synth')
+      ? BLUEPRINT_BY_SOURCE.synth
+      : (n.type==='output'&&n.id==='assetgen')
+        ? BLUEPRINT_BY_SOURCE.assetgen
+        : BLUEPRINT_BY_SOURCE[sid];
+    return {
+      id:n.id,
+      kind:kindForCanvasNode(n),
+      x:Number(n.x||0),
+      y:Number(n.y||0),
+      title:n.name||n.id,
+      subtitle:n.role||n.tagline||n.srcName||'',
+      config:{
+        blueprintId:bp,
+        workflowRef:workflowRefForNode(n,sid),
+        inputs:{
+          summary:n.sync||'',
+          source:sid||n.id
+        },
+        params:{}
+      }
+    };
+  });
+  const mappedEdges=conns.map((c,idx)=>({id:c.id||`e-${idx}-${c.f}-${c.t}`,from:c.f,to:c.t}));
+  return {
+    productId:currentProjectId,
+    nodes:mappedNodes,
+    edges:mappedEdges,
+    updatedAt:new Date().toISOString()
+  };
+}
+async function withApiBase(path,opts){
+  for(const base of settingsApiTargets()){
+    try{
+      const res=await fetch(`${base}${path}`,opts);
+      if(res.ok){
+        settingsApiBaseCache=base;
+        return res;
+      }
+    }catch{}
+  }
+  throw new Error(`API unavailable: ${path}`);
+}
+let backendRunContext={workspaceId:'default-workspace',productId:''};
+async function ensureBackendProductContext(){
+  const workspaceId=((desktopSettings.runtime&&desktopSettings.runtime.hostedWorkspaceId)||'').trim()||'default-workspace';
+  if(backendRunContext.workspaceId!==workspaceId) backendRunContext={workspaceId,productId:''};
+  if(backendRunContext.productId) return backendRunContext;
+  const snapRes=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/snapshot`,{
+    headers:{...apiAuthHeaders()}
+  });
+  const snap=await snapRes.json();
+  const first=(snap&&Array.isArray(snap.products)&&snap.products[0])?snap.products[0]:null;
+  if(!first||!first.id) throw new Error('No backend product available');
+  backendRunContext.productId=String(first.id);
+  return backendRunContext;
+}
+function applyRunDetailToCanvas(detail){
+  if(!detail||!Array.isArray(detail.steps)) return;
+  const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  detail.steps.forEach(step=>{
+    const node=gn(step.nodeId);
+    if(!node) return;
+    if(step.status==='running'){
+      node.runState='running';
+      node.sync='running';
+    }else if(step.status==='completed'){
+      node.runState='completed';
+      node.sync='just now';
+      node.connected=true;
+      node.runs=[{
+        date:stamp,
+        summary:'Node run completed',
+        count:'1',
+        url:'#'
+      },...(node.runs||[])].slice(0,12);
+    }else if(step.status==='failed'){
+      node.runState='failed';
+      node.sync=`failed: ${step.errorMessage||'run error'}`;
+      node.runs=[{
+        date:stamp,
+        summary:`Run failed · ${step.errorMessage||'error'}`,
+        count:'ERR',
+        url:'#'
+      },...(node.runs||[])].slice(0,12);
+    }
+    refreshNode(node.id);
+  });
+  syncProjectState();
+}
+async function runNodeOrchestration(nodeIds){
+  await loadProviderConnections(false);
+  const ctx=await ensureBackendProductContext();
+  const doc=toBackendCanvasDoc();
+  await withApiBase(`/workspaces/${encodeURIComponent(ctx.workspaceId)}/products/${encodeURIComponent(ctx.productId)}/canvas`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+    body:JSON.stringify(doc)
+  });
+  const runRes=await withApiBase(`/workspaces/${encodeURIComponent(ctx.workspaceId)}/products/${encodeURIComponent(ctx.productId)}/node-runs`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+    body:JSON.stringify({nodeIds})
+  });
+  const runBody=await runRes.json();
+  const runId=runBody&&runBody.runId?String(runBody.runId):'';
+  if(!runId) throw new Error('Node run did not start');
+  const started=Date.now();
+  while(Date.now()-started<120000){
+    await new Promise(resolve=>setTimeout(resolve,1200));
+    const detRes=await withApiBase(`/workspaces/${encodeURIComponent(ctx.workspaceId)}/products/${encodeURIComponent(ctx.productId)}/node-runs/${encodeURIComponent(runId)}`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const detail=await detRes.json();
+    applyRunDetailToCanvas(detail);
+    const status=detail&&detail.run&&detail.run.status?String(detail.run.status):'';
+    if(status==='completed' || status==='failed' || status==='cancelled') return detail;
+  }
+  throw new Error('Node run timed out');
+}
+async function syncProviderConnection(sourceId,payload){
+  const dep=EXTERNAL_DEP_REQUIREMENTS[sourceId];
+  if(!dep) return;
+  const workspaceId=((desktopSettings.runtime&&desktopSettings.runtime.hostedWorkspaceId)||'').trim()||'default-workspace';
+  const providerKey=(dep.integrationId||dep.providerName.toLowerCase());
+  await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/connections/${encodeURIComponent(providerKey)}/connect`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+    body:JSON.stringify(payload||{state:'connected',authType:dep.authType||'api_key'})
+  });
+  await loadProviderConnections(true);
+}
+function agentBrandAnalysisForHub(hub){
+  return {
+    companyName:'Openflow',
+    brandName:'Openflow',
+    industry:'performance marketing',
+    targetAudience:`${hub&&hub.name?hub.name:'Growth teams'} operators`,
+    productsServices:['creative strategy canvas','agentic research','asset generation']
+  };
+}
+function summarizeRedditResult(result){
+  const count=Array.isArray(result&&result.findings)?result.findings.length:0;
+  const top=(result&&result.findings&&result.findings[0])?result.findings[0]:null;
+  const quote=top&&top.text?String(top.text).slice(0,90):'No finding preview';
+  return `${count} findings · ${quote}${quote.length>=90?'…':''}`;
+}
+function summarizePersonaResult(result){
+  const items=Array.isArray(result&&result.items)?result.items:[];
+  const first=items[0]||{};
+  const persona=first.persona?String(first.persona):'No persona yet';
+  return `${items.length} personas mapped · ${persona}`;
+}
+function summarizePneResult(result){
+  const combos=Array.isArray(result&&result.combos)?result.combos:[];
+  const first=combos[0]||{};
+  const p=first.persona?String(first.persona):'n/a';
+  const n=first.need?String(first.need):'n/a';
+  return `${combos.length} PNE combos · ${p} / ${n}`;
+}
+async function runAgentNode(nodeId){
+  const node=gn(nodeId);
+  if(!node||!isAgentNode(node)||node.runState==='running') return false;
+  const sid=sourceIdForNode(node);
+  const hubId=nodeHubId(node.id);
+  const hub=hubId?gn(hubId):null;
+  const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  node.runState='running';
+  node.sync='running';
+  refreshNode(node.id);
+  try{
+    if(sid==='reddit'){
+      const payload={brandAnalysis:agentBrandAnalysisForHub(hub)};
+      const result=await callAgentEndpoint('/agents/reddit/scrape',payload);
+      node.agentData={type:'reddit',lastResult:result};
+      node.lastRunAt=Date.now();
+      node.runs=[{
+        date:stamp,
+        summary:summarizeRedditResult(result),
+        count:String(Array.isArray(result.findings)?result.findings.length:0),
+        data:result,
+        url:'#'
+      },...(node.runs||[])].slice(0,12);
+    }else if(sid==='persona_needs_emotions'){
+      const redditNode=findHubSourceNode(hubId,'reddit');
+      const findings=redditNode&&redditNode.agentData&&Array.isArray(redditNode.agentData.lastResult&&redditNode.agentData.lastResult.findings)
+        ? redditNode.agentData.lastResult.findings
+        : [];
+      if(!findings.length) throw new Error('Run Reddit agent first');
+      const payload={brandAnalysis:agentBrandAnalysisForHub(hub),findings};
+      const result=await callAgentEndpoint('/agents/persona-needs-emotions',payload);
+      node.agentData={type:'persona',lastResult:result};
+      node.lastRunAt=Date.now();
+      node.runs=[{
+        date:stamp,
+        summary:summarizePersonaResult(result),
+        count:String(Array.isArray(result.items)?result.items.length:0),
+        data:result,
+        url:'#'
+      },...(node.runs||[])].slice(0,12);
+    }else if(sid==='pne_framework'){
+      const personaNode=findHubSourceNode(hubId,'persona_needs_emotions');
+      const items=personaNode&&personaNode.agentData&&Array.isArray(personaNode.agentData.lastResult&&personaNode.agentData.lastResult.items)
+        ? personaNode.agentData.lastResult.items
+        : [];
+      if(!items.length) throw new Error('Run Persona + Needs + Emotions first');
+      const payload={items,limit:12};
+      const result=await callAgentEndpoint('/agents/pne-framework',payload);
+      node.agentData={type:'pne',lastResult:result};
+      node.lastRunAt=Date.now();
+      node.runs=[{
+        date:stamp,
+        summary:summarizePneResult(result),
+        count:String(Array.isArray(result.combos)?result.combos.length:0),
+        data:result,
+        url:'#'
+      },...(node.runs||[])].slice(0,12);
+    }
+    node.connected=true;
+    node.sync='just now';
+    node.notifCount=(node.notifCount||0)+1;
+    node.runState='completed';
+    refreshNode(node.id);
+    syncProjectState();
+    showToast(node.id,`${node.name} run completed`);
+    return true;
+  }catch(err){
+    const message=(err&&err.message)?String(err.message):'Agent run failed';
+    node.runState='failed';
+    node.sync=`failed: ${message}`;
+    node.runs=[{
+      date:stamp,
+      summary:`Run failed · ${message}`,
+      count:'ERR',
+      url:'#'
+    },...(node.runs||[])].slice(0,12);
+    refreshNode(node.id);
+    syncProjectState();
+    showToast(node.id,message);
+    return false;
+  }
+}
+function hubAgentNodesInOrder(hubId){
+  const order=['reddit','persona_needs_emotions','pne_framework'];
+  const upstream=conns
+    .filter(edge=>edge.t===hubId)
+    .map(edge=>gn(edge.f))
+    .filter(Boolean)
+    .filter(node=>isAgentNode(node)&&node.connected!==false);
+  const bySource=new Map();
+  upstream.forEach(node=>bySource.set(sourceIdForNode(node),node));
+  const picked=order.map(id=>bySource.get(id)).filter(Boolean);
+  upstream.forEach(node=>{
+    if(!picked.includes(node)) picked.push(node);
+  });
+  return picked;
+}
+function outputUpstreamHubIds(outputId){
+  return conns
+    .filter(edge=>edge.t===outputId)
+    .map(edge=>edge.f)
+    .filter(id=>{
+      const n=gn(id);
+      return n&&n.type==='hub';
+    });
+}
+async function runHubFlow(hubId){
+  const hub=gn(hubId);
+  if(!hub||hub.flowState==='running') return;
+  const queue=hubAgentNodesInOrder(hubId);
+  if(!queue.length){
+    showToast(hubId,'No runnable agent nodes connected to this hub');
+    return;
+  }
+  hub.flowState='running';
+  refreshNode(hubId);
+  try{
+    const nodeIds=queue.map(node=>node.id).concat([hubId]);
+    await runNodeOrchestration(nodeIds);
+  }finally{
+    hub.flowState='idle';
+    hub.notifCount=(hub.notifCount||0)+1;
+    refreshNode(hubId);
+    syncProjectState();
+  }
+  showToast(hubId,`${hub.name} flow complete`);
+}
+async function runOutputFlow(outputId){
+  const out=gn(outputId);
+  if(!out||out.flowState==='running') return;
+  const hubIds=outputUpstreamHubIds(outputId);
+  if(!hubIds.length){
+    showToast(outputId,'No upstream hubs connected');
+    return;
+  }
+  out.flowState='running';
+  out.status='processing';
+  refreshNode(outputId);
+  try{
+    const runNodeIds=[];
+    for(const hubId of hubIds){
+      const queue=hubAgentNodesInOrder(hubId);
+      const hub=gn(hubId);
+      if(hub){
+        hub.flowState='running';
+        refreshNode(hubId);
+      }
+      queue.forEach(node=>runNodeIds.push(node.id));
+      runNodeIds.push(hubId);
+      if(hub){
+        hub.flowState='idle';
+        hub.notifCount=(hub.notifCount||0)+1;
+        refreshNode(hubId);
+      }
+    }
+    runNodeIds.push(outputId);
+    await runNodeOrchestration(Array.from(new Set(runNodeIds)));
+    out.status='ready';
+    out.notifCount=(out.notifCount||0)+1;
+    showToast(outputId,`${out.name} upstream flow complete`);
+  }finally{
+    out.flowState='idle';
+    refreshNode(outputId);
+    syncProjectState();
+  }
+}
 
 function brainNodeButtons(hubId){
   const ids=BRAIN_NODE_MAP[hubId]||['csv','api','comfyui','elevenlabs','elevenlabs_music'];
@@ -2530,10 +3367,10 @@ function brainNodeButtons(hubId){
 }
 
 function leftSectionTitle(sec){
-  return {openflow:'Openflow',assets:'Media Assets',nodes:'Nodes',workflows:'Workflows',templates:'Templates'}[sec]||'Openflow';
+  return {openflow:'Openflow',assets:'Media Assets',nodes:'Nodes',workflows:'Workflows',connections:'Connections',templates:'Templates'}[sec]||'Openflow';
 }
 function setLeftActiveTab(sec){
-  ['openflow','assets','nodes','workflows','templates'].forEach(id=>{
+  ['openflow','assets','nodes','workflows','connections','templates'].forEach(id=>{
     const el=document.getElementById('of-tab-'+id);
     if(el) el.classList.toggle('on',id===sec);
   });
@@ -2544,6 +3381,9 @@ function openLeftSection(sec){
   document.getElementById('of-side').classList.add('open');
   document.getElementById('of-collapse-ico').innerHTML='<polyline points="15,18 9,12 15,6"/>';
   renderLeftSidebar();
+  if(sec==='connections'){
+    loadProviderConnections(true).then(()=>renderLeftSidebar()).catch(()=>{});
+  }
 }
 function toggleLeftSidebar(){
   leftSidebar.open=!leftSidebar.open;
@@ -2566,9 +3406,13 @@ function renderLeftSidebar(){
   const chips=document.getElementById('of-chip-row');
   const title=document.getElementById('of-title');
   const search=document.getElementById('of-search');
+  const refreshBtn=document.getElementById('of-refresh');
+  const settingsBtn=document.getElementById('of-settings');
   if(!list||!chips||!title) return;
   title.textContent=leftSectionTitle(sec);
-  if(search) search.placeholder = sec==='assets' ? 'Search assets...' : sec==='nodes' ? 'Search nodes...' : 'Search...';
+  if(search) search.placeholder = sec==='assets' ? 'Search assets...' : sec==='nodes' ? 'Search nodes...' : sec==='connections' ? 'Search providers...' : 'Search...';
+  if(refreshBtn) refreshBtn.classList.toggle('show',sec==='connections');
+  if(settingsBtn) settingsBtn.classList.toggle('show',sec==='connections');
   setLeftActiveTab(sec);
   chips.innerHTML='';
 
@@ -2585,15 +3429,11 @@ function renderLeftSidebar(){
     return;
   }
   if(sec==='nodes'){
-    const groups=Object.entries(BRAIN_NODE_MAP).map(([brain,ids])=>({
-      brain,
-      items:(ids||[]).map(id=>SOURCE_TYPES.find(s=>s.id===id)).filter(Boolean).map(s=>({name:s.name,sub:s.desc}))
-    }));
-    list.innerHTML=groups.map(g=>{
-      const rows=leftFilter(g.items);
-      if(!rows.length) return '';
-      return `<div class="of-sec">${esc(g.brain)} brain</div>${rows.map(r=>`<div class="of-item"><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join('')}`;
-    }).join('') || '<div class="of-empty">No nodes found</div>';
+    const active=leftSidebar.nodeFilter||'all';
+    chips.innerHTML=`
+      <button class="of-chip ${active==='all'?'on':''}" onclick="setNodeFilter('all')">All</button>
+      <button class="of-chip ${active==='blueprints'?'on':''}" onclick="setNodeFilter('blueprints')">Blueprints</button>`;
+    list.innerHTML=renderNodeLibrary(active);
     return;
   }
   if(sec==='workflows'){
@@ -2604,6 +3444,17 @@ function renderLeftSidebar(){
       {name:'WF-11-MUSIC',sub:'ElevenLabs video-to-music · active'}
     ]);
     list.innerHTML=rows.length?rows.map(r=>`<div class="of-item"><div class="of-item-title">${esc(r.name)}</div><div class="of-item-sub">${esc(r.sub)}</div></div>`).join(''):'<div class="of-empty">No workflows found</div>';
+    return;
+  }
+  if(sec==='connections'){
+    const active=leftSidebar.connectionFilter||'all';
+    chips.innerHTML=`
+      <button class="of-chip ${active==='all'?'on':''}" onclick="setConnectionFilter('all')">All</button>
+      <button class="of-chip ${active==='connected'?'on':''}" onclick="setConnectionFilter('connected')">Connected</button>
+      <button class="of-chip ${active==='attention'?'on':''}" onclick="setConnectionFilter('attention')">Needs Attention</button>
+      <button class="of-chip ${active==='disconnected'?'on':''}" onclick="setConnectionFilter('disconnected')">Disconnected</button>`;
+    const rows=leftFilter(listProviderConnections()).filter(row=>active==='all'||row.state===active);
+    list.innerHTML=renderConnectionGroups(rows);
     return;
   }
   if(sec==='templates'){
@@ -2626,6 +3477,178 @@ function renderLeftSidebar(){
 function setTemplateFilter(kind){
   leftSidebar.templateFilter=kind;
   renderLeftSidebar();
+}
+function setConnectionFilter(kind){
+  leftSidebar.connectionFilter=kind;
+  renderLeftSidebar();
+}
+function setNodeFilter(kind){
+  leftSidebar.nodeFilter=kind;
+  renderLeftSidebar();
+}
+async function refreshConnectionsNow(){
+  await loadProviderConnections(true);
+  renderLeftSidebar();
+}
+function listProviderConnections(){
+  const merged={};
+  Object.values(EXTERNAL_DEP_REQUIREMENTS).forEach(dep=>{
+    const key=String(dep.integrationId||dep.providerName||'').toLowerCase();
+    if(!key) return;
+    if(!merged[key]){
+      merged[key]={
+        providerKey:key,
+        providerName:dep.providerName||key,
+        authType:dep.authType||'api_key',
+        keyField:dep.keyField||'',
+        sourceCount:0
+      };
+    }
+    merged[key].sourceCount+=1;
+    if(!merged[key].keyField && dep.keyField) merged[key].keyField=dep.keyField;
+    if(dep.authType==='oauth') merged[key].authType='oauth';
+  });
+  return Object.values(merged).map(meta=>{
+    const conn=providerConnectionsIndex[meta.providerKey]||null;
+    const local=(desktopSettings.integrations&&desktopSettings.integrations[meta.providerKey])||null;
+    let state='disconnected';
+    let statusLabel='Disconnected';
+    if(conn){
+      if(conn.state==='connected'){state='connected';statusLabel='Connected';}
+      else if(conn.state==='expired'){state='attention';statusLabel='Expired';}
+      else if(conn.state==='scope_missing'){state='attention';statusLabel='Scope Missing';}
+      else if(conn.state==='disconnected'){state='disconnected';statusLabel='Disconnected';}
+      else{state='attention';statusLabel=String(conn.state||'Attention');}
+    }else if(local&&local.connected){
+      state='connected';
+      statusLabel='Connected';
+    }else if(!isByokLocalMode()){
+      state='managed';
+      statusLabel='Managed';
+    }
+    const lastUpdated=(conn&&(conn.updatedAt||conn.createdAt))||(local&&local.connectedAt)||'';
+    return {
+      ...meta,
+      state,
+      statusLabel,
+      account:(conn&&conn.account)||'',
+      scopes:(conn&&Array.isArray(conn.scopes)?conn.scopes:[]),
+      lastUpdated:lastUpdated?String(lastUpdated):''
+    };
+  }).sort((a,b)=>String(a.providerName).localeCompare(String(b.providerName)));
+}
+function renderConnectionRow(row){
+  const authLabel=row.authType==='oauth'?'OAuth':'API key';
+  const stateHint=row.account?`Account ${row.account}`:(row.lastUpdated?`Updated ${new Date(row.lastUpdated).toLocaleDateString()}`:'No account linked');
+  const actionLabel=row.state==='connected'?'Reconnect':'Connect';
+  return `<div class="of-conn-row">
+    <svg viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    <div class="of-conn-main">
+      <div class="of-conn-title">${esc(row.providerName)}</div>
+      <div class="of-conn-sub">${esc(authLabel)} · ${row.sourceCount} node type${row.sourceCount===1?'':'s'} · ${esc(stateHint)}</div>
+    </div>
+    <div class="of-conn-right">
+      <span class="of-conn-badge ${esc(row.state)}">${esc(row.statusLabel)}</span>
+      <button class="of-conn-btn primary" onclick="connectProviderFromLeft('${esc(row.providerKey)}')">${esc(actionLabel)}</button>
+    </div>
+  </div>`;
+}
+function renderConnectionGroups(rows){
+  if(!rows.length) return '<div class="of-empty">No providers match this filter</div>';
+  const groups=[
+    {label:'CONNECTED',key:'connected'},
+    {label:'NEEDS ATTENTION',key:'attention'},
+    {label:'DISCONNECTED',key:'disconnected'},
+    {label:'MANAGED',key:'managed'}
+  ];
+  return groups.map(g=>{
+    const subset=rows.filter(r=>r.state===g.key);
+    if(!subset.length) return '';
+    return `<div class="of-sec">${g.label}</div>${subset.map(renderConnectionRow).join('')}`;
+  }).join('')||'<div class="of-empty">No providers match this filter</div>';
+}
+function renderNodeLibrary(filterKind){
+  const groups=Object.entries(BRAIN_NODE_MAP).map(([brain,ids])=>({
+    brain,
+    items:(ids||[]).map(id=>SOURCE_TYPES.find(s=>s.id===id)).filter(Boolean).map(s=>({name:s.name,sub:s.desc}))
+  }));
+  const sections=groups.map(group=>{
+    const nodes=leftFilter(group.items);
+    if(!nodes.length) return '';
+    const rows=nodes.map(n=>`<div class="of-node-item">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+      <div><div class="of-node-item-title">${esc(n.name)}</div><div class="of-node-item-sub">${esc(n.sub)}</div></div>
+    </div>`).join('');
+    return `<div class="of-sec">${esc(group.brain.toUpperCase())} BRAIN</div>
+      <div class="of-node-folder">
+        <svg viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <div class="of-node-folder-title">${esc(group.brain)} Nodes</div>
+      </div>
+      ${rows}`;
+  }).join('');
+  if(filterKind==='blueprints'){
+    return sections||'<div class="of-empty">No blueprints found</div>';
+  }
+  return `<div class="of-sec">BOOKMARKED</div><div class="of-empty">No bookmarks yet</div>${sections||'<div class="of-empty">No nodes found</div>'}`;
+}
+async function connectProviderFromLeft(providerKey){
+  const rows=listProviderConnections();
+  const row=rows.find(item=>item.providerKey===providerKey);
+  if(!row) return;
+  let token='';
+  let account='';
+  if(isByokLocalMode()){
+    if(row.authType==='oauth'){
+      const accountInput=prompt(`Connect ${row.providerName} account (email/workspace ID)`,'');
+      if(accountInput===null) return;
+      account=String(accountInput||'').trim();
+      token='oauth_connected';
+    }else{
+      const entered=prompt(`Enter ${row.keyField||'API key'} for ${row.providerName}`,'');
+      if(entered===null) return;
+      token=String(entered||'').trim();
+      if(!token){
+        showToast('settings',`Missing ${row.keyField||'API key'}`);
+        return;
+      }
+    }
+    desktopSettings.integrations=desktopSettings.integrations||{};
+    desktopSettings.integrations[providerKey]={
+      connected:true,
+      provider:row.providerName,
+      authType:row.authType,
+      account,
+      keyPreview:token?`${token.slice(0,4)}...${token.slice(-2)}`:'',
+      connectedAt:new Date().toISOString()
+    };
+    localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+    const remote=await persistSettingsRemote(desktopSettings);
+    if(remote){
+      desktopSettings=remote;
+      localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+    }
+  }
+  try{
+    const workspaceId=workspaceIdForApi();
+    await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/connections/${encodeURIComponent(providerKey)}/connect`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+      body:JSON.stringify({
+        state:'connected',
+        authType:row.authType,
+        account,
+        token,
+        scopes:[]
+      })
+    });
+    await loadProviderConnections(true);
+    renderLeftSidebar();
+    showToast('settings',`${row.providerName} connected`);
+  }catch(err){
+    showToast('settings',`${row.providerName} connection failed`);
+  }
 }
 function runOpenflowAction(action){
   if(action==='open-plans'){
@@ -2684,6 +3707,41 @@ function formatPlanLabel(){
   const cat=OPENFLOW_PLAN_CATALOG[p]||OPENFLOW_PLAN_CATALOG.standard;
   return `${cat.name} (${cycle})`;
 }
+function renderRuntimeToggle(){
+  const mode=(desktopSettings.runtime&&desktopSettings.runtime.backendMode)==='hosted'?'hosted':'local';
+  const localBtn=document.getElementById('rt-local');
+  const hostedBtn=document.getElementById('rt-hosted');
+  if(localBtn) localBtn.classList.toggle('on',mode==='local');
+  if(hostedBtn) hostedBtn.classList.toggle('on',mode==='hosted');
+}
+async function setRuntimeMode(mode){
+  const nextMode=mode==='hosted'?'hosted':'local';
+  const current=(desktopSettings.runtime&&desktopSettings.runtime.backendMode)==='hosted'?'hosted':'local';
+  if(current===nextMode){renderRuntimeToggle();return;}
+  desktopSettings=mergeDesktopSettings({
+    ...desktopSettings,
+    runtime:{
+      ...(desktopSettings.runtime||{}),
+      backendMode:nextMode
+    }
+  });
+  const runtimeBase=(desktopSettings.runtime.hostedApiBase||'').replace(/\/+$/,'');
+  if(nextMode==='hosted' && runtimeBase){
+    localStorage.setItem('openflow.settingsApiBase',runtimeBase);
+    localStorage.setItem('openflow.runtimeApiBase',runtimeBase);
+  }else{
+    localStorage.removeItem('openflow.runtimeApiBase');
+  }
+  localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  const remote=await persistSettingsRemote(desktopSettings);
+  if(remote){
+    desktopSettings=remote;
+    localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  }
+  renderRuntimeToggle();
+  fillKeysForm();
+  showToast('performance',`Runtime switched to ${nextMode==='hosted'?'Hosted':'Local'} mode`);
+}
 async function loadDesktopSettings(){
   for(const base of SETTINGS_API_CANDIDATES){
     try{
@@ -2698,6 +3756,7 @@ async function loadDesktopSettings(){
           localStorage.removeItem('openflow.runtimeApiBase');
         }
         localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+        renderRuntimeToggle();
         return;
       }
     }catch{}
@@ -2712,6 +3771,7 @@ async function loadDesktopSettings(){
       }else{
         localStorage.removeItem('openflow.runtimeApiBase');
       }
+      renderRuntimeToggle();
     }
   }catch{}
 }
@@ -2798,6 +3858,9 @@ async function saveKeysSettings(){
     desktopSettings=remote;
     localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
   }
+  renderRuntimeToggle();
+  comfyProbeState={base:'',ok:null,at:0};
+  await refreshComfyAvailability(false,true);
   showToast('performance','Saved billing + API key settings');
   closeKeysModal();
 }
@@ -2975,8 +4038,10 @@ function closeSrcPicker(){
   srcPickerHub=null;
 }
 
-function openComfyEditor(nodeId,event){
+async function openComfyEditor(nodeId,event){
   event&&event.stopPropagation();
+  const reachable=await refreshComfyAvailability(true);
+  if(!reachable) return;
   const bd=document.getElementById('comfy-editor-backdrop');
   const fr=document.getElementById('comfy-editor-frame');
   if(!bd||!fr) return;
@@ -3095,6 +4160,12 @@ document.getElementById('cx-del').addEventListener('click',()=>{
 let spaceDown=false;
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  const zKey=e.key==='z'||e.key==='Z';
+  if((e.metaKey||e.ctrlKey)&&zKey){
+    e.preventDefault();
+    undoLastAction();
+    return;
+  }
   if(e.key===' '){e.preventDefault();spaceDown=true;vpEl().style.cursor='grab';}
   else if(e.key==='v'||e.key==='V') setMode('select');
   else if(e.key==='f'||e.key==='F') fitAll();
@@ -3175,9 +4246,13 @@ function initProjectPicker(){
 
 // ── INIT ──────────────────────────────────────────────────────
 initProjectPicker();
+resetUndoStack();
 Promise.resolve(loadDesktopSettings())
   .then(()=>loadComfyTemplatesLibrary())
+  .then(()=>loadProviderConnections(true))
+  .then(()=>refreshComfyAvailability(true,true))
   .finally(()=>{
+    renderRuntimeToggle();
     renderAll();
     setTimeout(()=>fitAll(),120);
   });

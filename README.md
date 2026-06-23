@@ -13,8 +13,9 @@ npm run personal:start
 This does:
 
 1. install dependencies
-2. start local backend on `http://localhost:8790`
-3. launch the desktop app
+2. auto-install Rust/Cargo (first run, if missing)
+3. start local backend on `http://localhost:8790`
+4. launch the desktop app
 
 SQLite DB is auto-created at:
 

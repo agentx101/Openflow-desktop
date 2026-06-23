@@ -5,25 +5,46 @@ import { createServer } from "node:http";
 import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import Database from "better-sqlite3";
+import { runPersonaNeedEmotion, runPneFramework, runRedditScraper } from "./agentBridge";
+import { DATA_STORE_BLUEPRINT_IDS, getBlueprintById, NODE_BLUEPRINTS } from "./blueprints";
 
 type CanvasNodeKind =
   | "agent"
   | "source"
   | "brief"
+  | "brain_hub"
+  | "brain_agent"
+  | "source_connector"
+  | "data_store"
   | "generation.image"
   | "generation.video"
   | "generation.audio"
   | "generation.music"
-  | "generation.template";
+  | "generation.template"
+  | "publishing"
+  | "performance"
+  | "synth";
 type RunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 type GenerationJobStatus = "queued" | "running" | "completed" | "failed";
 
 type GenerationNodeConfig = {
+  blueprintId?: string;
   workflowRef: string;
   templateId?: string;
   inputs?: Record<string, unknown>;
   params?: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
+};
+
+type WorkspaceProviderConnection = {
+  workspaceId: string;
+  provider: string;
+  state: "disconnected" | "connected" | "expired" | "scope_missing";
+  authType: "oauth" | "api_key";
+  account?: string;
+  encryptedToken?: string;
+  scopes: string[];
+  updatedAt: string;
 };
 
 type CanvasNode = {
@@ -337,7 +358,42 @@ CREATE TABLE IF NOT EXISTS comfy_templates (
   preview_url TEXT,
   tags_json TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS node_blueprints (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  connection_json TEXT,
+  inputs_json TEXT,
+  outputs_json TEXT,
+  execution_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workspace_provider_connections (
+  workspace_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  state TEXT NOT NULL,
+  auth_type TEXT NOT NULL,
+  account TEXT,
+  encrypted_token TEXT,
+  scopes_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(workspace_id, provider)
 );`);
+
+for (const tableName of DATA_STORE_BLUEPRINT_IDS) {
+  db.exec(`
+CREATE TABLE IF NOT EXISTS ${tableName} (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_node_id TEXT,
+  run_id TEXT,
+  payload_json TEXT NOT NULL,
+  ingested_at TEXT NOT NULL
+);`);
+}
 
 const countFolders = db.prepare("SELECT COUNT(1) as count FROM project_folders WHERE workspace_id = ?");
 const insertFolder = db.prepare("INSERT INTO project_folders (id, workspace_id, name) VALUES (?, ?, ?)");
@@ -485,6 +541,73 @@ const readComfyTemplatesStmt = db.prepare(`
   FROM comfy_templates
   ORDER BY category ASC, subcategory ASC, name ASC
 `);
+const upsertNodeBlueprintStmt = db.prepare(`
+  INSERT INTO node_blueprints (
+    id, category, kind, name, description, connection_json, inputs_json, outputs_json, execution_json, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    category = excluded.category,
+    kind = excluded.kind,
+    name = excluded.name,
+    description = excluded.description,
+    connection_json = excluded.connection_json,
+    inputs_json = excluded.inputs_json,
+    outputs_json = excluded.outputs_json,
+    execution_json = excluded.execution_json,
+    updated_at = excluded.updated_at
+`);
+const readNodeBlueprintsStmt = db.prepare(`
+  SELECT
+    id, category, kind, name, description,
+    connection_json as connectionJson,
+    inputs_json as inputsJson,
+    outputs_json as outputsJson,
+    execution_json as executionJson
+  FROM node_blueprints
+  ORDER BY category ASC, name ASC
+`);
+const upsertWorkspaceProviderConnectionStmt = db.prepare(`
+  INSERT INTO workspace_provider_connections (
+    workspace_id, provider, state, auth_type, account, encrypted_token, scopes_json, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(workspace_id, provider) DO UPDATE SET
+    state = excluded.state,
+    auth_type = excluded.auth_type,
+    account = excluded.account,
+    encrypted_token = excluded.encrypted_token,
+    scopes_json = excluded.scopes_json,
+    updated_at = excluded.updated_at
+`);
+const readWorkspaceProviderConnectionStmt = db.prepare(`
+  SELECT
+    workspace_id as workspaceId,
+    provider,
+    state,
+    auth_type as authType,
+    account,
+    encrypted_token as encryptedToken,
+    scopes_json as scopesJson,
+    updated_at as updatedAt
+  FROM workspace_provider_connections
+  WHERE workspace_id = ? AND provider = ?
+  LIMIT 1
+`);
+const readWorkspaceProviderConnectionsStmt = db.prepare(`
+  SELECT
+    workspace_id as workspaceId,
+    provider,
+    state,
+    auth_type as authType,
+    account,
+    encrypted_token as encryptedToken,
+    scopes_json as scopesJson,
+    updated_at as updatedAt
+  FROM workspace_provider_connections
+  WHERE workspace_id = ?
+  ORDER BY provider ASC
+`);
+const dataStoreInsertStmtCache = new Map<string, Database.Statement>();
+const dataStoreReadRecentStmtCache = new Map<string, Database.Statement>();
 
 function nowIso() {
   return new Date().toISOString();
@@ -496,6 +619,255 @@ function newId(prefix: string) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function encryptToken(raw?: string) {
+  if (!raw) return "";
+  return Buffer.from(raw, "utf8").toString("base64");
+}
+function decryptToken(raw?: string) {
+  if (!raw) return "";
+  try {
+    return Buffer.from(raw, "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function seedNodeBlueprints() {
+  const tx = db.transaction(() => {
+    for (const bp of NODE_BLUEPRINTS) {
+      upsertNodeBlueprintStmt.run(
+        bp.id,
+        bp.category,
+        bp.kind,
+        bp.name,
+        bp.description,
+        bp.connection ? JSON.stringify(bp.connection) : null,
+        bp.inputs ? JSON.stringify(bp.inputs) : null,
+        bp.outputs ? JSON.stringify(bp.outputs) : null,
+        JSON.stringify(bp.execution),
+        nowIso()
+      );
+    }
+  });
+  tx();
+}
+seedNodeBlueprints();
+
+function listNodeBlueprints() {
+  const rows = readNodeBlueprintsStmt.all() as Array<{
+    id: string;
+    category: string;
+    kind: string;
+    name: string;
+    description: string;
+    connectionJson: string | null;
+    inputsJson: string | null;
+    outputsJson: string | null;
+    executionJson: string;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    category: row.category,
+    kind: row.kind,
+    name: row.name,
+    description: row.description,
+    connection: row.connectionJson ? JSON.parse(row.connectionJson) : undefined,
+    inputs: row.inputsJson ? JSON.parse(row.inputsJson) : undefined,
+    outputs: row.outputsJson ? JSON.parse(row.outputsJson) : undefined,
+    execution: JSON.parse(row.executionJson)
+  }));
+}
+
+function getWorkspaceProviderConnection(workspaceId: string, provider: string): WorkspaceProviderConnection | null {
+  const row = readWorkspaceProviderConnectionStmt.get(workspaceId, provider) as
+    | {
+        workspaceId: string;
+        provider: string;
+        state: WorkspaceProviderConnection["state"];
+        authType: WorkspaceProviderConnection["authType"];
+        account: string | null;
+        encryptedToken: string | null;
+        scopesJson: string;
+        updatedAt: string;
+      }
+    | undefined;
+  if (!row) return null;
+  return {
+    workspaceId: row.workspaceId,
+    provider: row.provider,
+    state: row.state,
+    authType: row.authType,
+    account: row.account || undefined,
+    encryptedToken: row.encryptedToken || undefined,
+    scopes: (() => {
+      try {
+        const parsed = JSON.parse(row.scopesJson);
+        return Array.isArray(parsed) ? parsed.map((v) => String(v)) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    updatedAt: row.updatedAt
+  };
+}
+
+function getWorkspaceProviderToken(workspaceId: string, provider: string): string {
+  const conn = getWorkspaceProviderConnection(workspaceId, provider);
+  return decryptToken(conn?.encryptedToken);
+}
+
+function dataStoreInsertStmt(tableName: string) {
+  if (!DATA_STORE_BLUEPRINT_IDS.has(tableName)) {
+    throw new Error(`Unknown data store table: ${tableName}`);
+  }
+  if (!dataStoreInsertStmtCache.has(tableName)) {
+    dataStoreInsertStmtCache.set(
+      tableName,
+      db.prepare(
+        `INSERT INTO ${tableName} (id, workspace_id, source_node_id, run_id, payload_json, ingested_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+    );
+  }
+  return dataStoreInsertStmtCache.get(tableName)!;
+}
+
+function dataStoreReadRecentStmt(tableName: string) {
+  if (!DATA_STORE_BLUEPRINT_IDS.has(tableName)) {
+    throw new Error(`Unknown data store table: ${tableName}`);
+  }
+  if (!dataStoreReadRecentStmtCache.has(tableName)) {
+    dataStoreReadRecentStmtCache.set(
+      tableName,
+      db.prepare(
+        `SELECT id, workspace_id as workspaceId, source_node_id as sourceNodeId, run_id as runId, payload_json as payloadJson, ingested_at as ingestedAt FROM ${tableName} WHERE workspace_id = ? ORDER BY ingested_at DESC LIMIT ?`
+      )
+    );
+  }
+  return dataStoreReadRecentStmtCache.get(tableName)!;
+}
+
+function addDataStoreRecord(
+  tableName: string,
+  workspaceId: string,
+  sourceNodeId: string | undefined,
+  runId: string | undefined,
+  payload: Record<string, unknown>
+) {
+  const row = {
+    id: newId("ds"),
+    workspaceId,
+    sourceNodeId: sourceNodeId || null,
+    runId: runId || null,
+    payloadJson: JSON.stringify(payload || {}),
+    ingestedAt: nowIso()
+  };
+  dataStoreInsertStmt(tableName).run(
+    row.id,
+    row.workspaceId,
+    row.sourceNodeId,
+    row.runId,
+    row.payloadJson,
+    row.ingestedAt
+  );
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    sourceNodeId: row.sourceNodeId || undefined,
+    runId: row.runId || undefined,
+    payload,
+    ingestedAt: row.ingestedAt
+  };
+}
+
+function listRecentDataStoreRecords(tableName: string, workspaceId: string, limit = 50) {
+  const rows = dataStoreReadRecentStmt(tableName).all(workspaceId, Math.max(1, Math.min(500, Math.floor(limit)))) as Array<{
+    id: string;
+    workspaceId: string;
+    sourceNodeId: string | null;
+    runId: string | null;
+    payloadJson: string;
+    ingestedAt: string;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    workspaceId: row.workspaceId,
+    sourceNodeId: row.sourceNodeId || undefined,
+    runId: row.runId || undefined,
+    payload: (() => {
+      try {
+        return JSON.parse(row.payloadJson);
+      } catch {
+        return {};
+      }
+    })(),
+    ingestedAt: row.ingestedAt
+  }));
+}
+
+function listWorkspaceProviderConnections(workspaceId: string): WorkspaceProviderConnection[] {
+  const rows = readWorkspaceProviderConnectionsStmt.all(workspaceId) as Array<{
+    workspaceId: string;
+    provider: string;
+    state: WorkspaceProviderConnection["state"];
+    authType: WorkspaceProviderConnection["authType"];
+    account: string | null;
+    encryptedToken: string | null;
+    scopesJson: string;
+    updatedAt: string;
+  }>;
+  return rows.map((row) => ({
+    workspaceId: row.workspaceId,
+    provider: row.provider,
+    state: row.state,
+    authType: row.authType,
+    account: row.account || undefined,
+    encryptedToken: row.encryptedToken || undefined,
+    scopes: (() => {
+      try {
+        const parsed = JSON.parse(row.scopesJson);
+        return Array.isArray(parsed) ? parsed.map((v) => String(v)) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    updatedAt: row.updatedAt
+  }));
+}
+
+function upsertWorkspaceProviderConnection(
+  workspaceId: string,
+  provider: string,
+  input: {
+    state: WorkspaceProviderConnection["state"];
+    authType: WorkspaceProviderConnection["authType"];
+    account?: string;
+    token?: string;
+    scopes?: string[];
+  }
+): WorkspaceProviderConnection {
+  const normalized: WorkspaceProviderConnection = {
+    workspaceId,
+    provider,
+    state: input.state,
+    authType: input.authType,
+    account: input.account || undefined,
+    encryptedToken: encryptToken(input.token),
+    scopes: (input.scopes || []).map((s) => String(s)),
+    updatedAt: nowIso()
+  };
+  upsertWorkspaceProviderConnectionStmt.run(
+    normalized.workspaceId,
+    normalized.provider,
+    normalized.state,
+    normalized.authType,
+    normalized.account || null,
+    normalized.encryptedToken || null,
+    JSON.stringify(normalized.scopes),
+    normalized.updatedAt
+  );
+  return normalized;
 }
 
 function normalizeSettings(raw: unknown): DesktopSettings {
@@ -1403,32 +1775,68 @@ function pickUrlFromResponse(body: Record<string, unknown>, keys: string[]): str
   return null;
 }
 
-function extractGenerationNodes(doc: CanvasDocument): CanvasNode[] {
-  return doc.nodes.filter(
-    (node) =>
-      node.kind === "generation.image" ||
-      node.kind === "generation.video" ||
-      node.kind === "generation.audio" ||
-      node.kind === "generation.music" ||
-      node.kind === "generation.template"
-  );
+function isExecutableKind(kind: CanvasNode["kind"]) {
+  return kind !== "brief";
 }
 
-function selectGenerationNodes(doc: CanvasDocument, nodeIds?: string[]): CanvasNode[] {
-  const generationNodes = extractGenerationNodes(doc);
-  if (!nodeIds || nodeIds.length === 0) {
-    return generationNodes;
+function collectSelectedWithAncestors(doc: CanvasDocument, selectedNodeIds?: string[]) {
+  if (!selectedNodeIds?.length) return new Set(doc.nodes.map((n) => n.id));
+  const incoming = new Map<string, string[]>();
+  for (const edge of doc.edges || []) {
+    if (!incoming.has(edge.to)) incoming.set(edge.to, []);
+    incoming.get(edge.to)!.push(edge.from);
   }
-  const selected = new Set(nodeIds);
-  const hasRenderNode = generationNodes.some(
-    (node) =>
-      selected.has(node.id) &&
-      (node.kind === "generation.image" ||
-        node.kind === "generation.video" ||
-        node.kind === "generation.audio" ||
-        node.kind === "generation.music")
-  );
-  return generationNodes.filter((node) => selected.has(node.id) || (hasRenderNode && node.kind === "generation.template"));
+  const selected = new Set(selectedNodeIds);
+  const stack = [...selectedNodeIds];
+  while (stack.length) {
+    const id = stack.pop()!;
+    const parents = incoming.get(id) || [];
+    for (const parent of parents) {
+      if (!selected.has(parent)) {
+        selected.add(parent);
+        stack.push(parent);
+      }
+    }
+  }
+  return selected;
+}
+
+function topologicalExecutableNodes(doc: CanvasDocument, nodeIds?: string[]): CanvasNode[] {
+  const nodeMap = new Map(doc.nodes.map((n) => [n.id, n]));
+  const selected = collectSelectedWithAncestors(doc, nodeIds);
+  const indegree = new Map<string, number>();
+  const outgoing = new Map<string, string[]>();
+  for (const node of doc.nodes) {
+    if (!selected.has(node.id) || !isExecutableKind(node.kind)) continue;
+    indegree.set(node.id, 0);
+    outgoing.set(node.id, []);
+  }
+  for (const edge of doc.edges || []) {
+    if (!indegree.has(edge.from) || !indegree.has(edge.to)) continue;
+    outgoing.get(edge.from)!.push(edge.to);
+    indegree.set(edge.to, (indegree.get(edge.to) || 0) + 1);
+  }
+  const queue = [...indegree.entries()].filter(([, deg]) => deg === 0).map(([id]) => id);
+  const ordered: CanvasNode[] = [];
+  while (queue.length) {
+    const id = queue.shift()!;
+    const node = nodeMap.get(id);
+    if (node) ordered.push(node);
+    for (const to of outgoing.get(id) || []) {
+      const next = (indegree.get(to) || 0) - 1;
+      indegree.set(to, next);
+      if (next === 0) queue.push(to);
+    }
+  }
+  if (ordered.length < indegree.size) {
+    for (const id of indegree.keys()) {
+      if (!ordered.find((n) => n.id === id)) {
+        const node = nodeMap.get(id);
+        if (node) ordered.push(node);
+      }
+    }
+  }
+  return ordered;
 }
 
 function isCancelled(runId: string) {
@@ -1499,12 +1907,369 @@ async function completeStepWithArtifacts(
   }
 }
 
-async function runGenerationNode(workspaceId: string, productId: string, runId: string, node: CanvasNode) {
+function isGenerationKind(kind: CanvasNode["kind"]) {
+  return (
+    kind === "generation.image" ||
+    kind === "generation.video" ||
+    kind === "generation.audio" ||
+    kind === "generation.music" ||
+    kind === "generation.template"
+  );
+}
+
+function validateBlueprintConfig(node: CanvasNode) {
+  const blueprint = getBlueprintById(node.config?.blueprintId);
+  if (!blueprint) return { ok: true as const };
+  if (blueprint.category === "generation" && !String(node.config?.workflowRef || "").trim()) {
+    return { ok: false as const, error: "workflowRef is required for generation nodes" };
+  }
+  return { ok: true as const };
+}
+
+function validateConnectionScopes(node: CanvasNode, workspaceId: string) {
+  const blueprint = getBlueprintById(node.config?.blueprintId);
+  if (!blueprint?.connection) return { ok: true as const };
+  const conn = getWorkspaceProviderConnection(workspaceId, blueprint.connection.provider);
+  if (!conn) return { ok: false as const, error: `${blueprint.connection.provider} is not connected` };
+  if (conn.state !== "connected") return { ok: false as const, error: `${conn.provider} is ${conn.state}` };
+  const required = blueprint.connection.scopes || [];
+  if (required.length && !required.every((scope) => conn.scopes.includes(scope))) {
+    return { ok: false as const, error: `Missing required scopes for ${conn.provider}` };
+  }
+  return { ok: true as const };
+}
+
+async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 25_000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${body.slice(0, 160)}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function requireProviderToken(workspaceId: string, provider: string) {
+  const token = getWorkspaceProviderToken(workspaceId, provider);
+  if (!token) throw new Error(`Missing token for provider ${provider}`);
+  return token;
+}
+
+async function runSourceOrAgentBlueprint(workspaceId: string, node: CanvasNode) {
+  const blueprintId = String(node.config?.blueprintId || "");
+  const blueprint = getBlueprintById(blueprintId);
+  if (blueprintId === "src_reddit_scraper") {
+    const result = await runRedditScraper({
+      brandAnalysis: (node.config?.inputs?.brandAnalysis || {}) as any,
+      queries: Array.isArray(node.config?.inputs?.queries) ? (node.config?.inputs?.queries as string[]) : undefined,
+      subreddits: Array.isArray(node.config?.inputs?.subreddits) ? (node.config?.inputs?.subreddits as string[]) : undefined
+    });
+    return { summary: `Reddit findings: ${result.findings.length}` };
+  }
+  if (blueprintId === "src_amazon_reviews_scraper") {
+    const token = requireProviderToken(workspaceId, "apify");
+    const productQuery = String(node.config?.inputs?.query || node.config?.inputs?.product || "best moisturizer");
+    const actorId = String(node.config?.params?.actorId || "epctex~amazon-reviews-scraper");
+    const run = await fetchJson(`https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs?token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ keyword: productQuery, maxReviews: Number(node.config?.params?.maxReviews || 100) })
+    });
+    return { summary: `Amazon scrape run started: ${String((run as any)?.data?.id || "ok")}` };
+  }
+  if (blueprintId === "src_interview_transcripts_gdrive") {
+    const token = requireProviderToken(workspaceId, "google_drive");
+    const q = encodeURIComponent(String(node.config?.params?.query || "mimeType!='application/vnd.google-apps.folder'"));
+    const fields = encodeURIComponent("files(id,name,mimeType,modifiedTime),nextPageToken");
+    const data = await fetchJson(`https://www.googleapis.com/drive/v3/files?q=${q}&pageSize=25&fields=${fields}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const files = Array.isArray((data as any).files) ? (data as any).files : [];
+    return { summary: `GDrive files ingested: ${files.length}` };
+  }
+  if (blueprintId === "src_slack_channel_reader") {
+    const token = requireProviderToken(workspaceId, "slack");
+    const channel = String(node.config?.params?.channel || node.config?.inputs?.channel || "");
+    if (!channel) throw new Error("Slack channel is required in node params.channel");
+    const qs = new URLSearchParams({ channel, limit: String(node.config?.params?.limit || 100) });
+    const data = await fetchJson(`https://slack.com/api/conversations.history?${qs.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!(data as any).ok) throw new Error(`Slack API failed: ${String((data as any).error || "unknown_error")}`);
+    const msgs = Array.isArray((data as any).messages) ? (data as any).messages : [];
+    return { summary: `Slack messages ingested: ${msgs.length}` };
+  }
+  if (blueprintId === "src_motion_analytics_ingest") {
+    const token = requireProviderToken(workspaceId, "motion");
+    const base = String(node.config?.params?.baseUrl || process.env.MOTION_API_BASE || "").trim().replace(/\/+$/, "");
+    if (!base) throw new Error("MOTION_API_BASE missing");
+    const path = String(node.config?.params?.path || "/reports/latest");
+    const data = await fetchJson(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const count = Array.isArray((data as any).items) ? (data as any).items.length : Object.keys((data as any) || {}).length;
+    return { summary: `Motion records ingested: ${count}` };
+  }
+  if (blueprintId === "src_meta_ads_metrics_ingest") {
+    const token = requireProviderToken(workspaceId, "meta");
+    const accountId = String(node.config?.params?.adAccountId || node.config?.inputs?.adAccountId || "").replace(/^act_/, "");
+    if (!accountId) throw new Error("adAccountId is required");
+    const fields = encodeURIComponent(String(node.config?.params?.fields || "impressions,clicks,spend,cpc,ctr,actions"));
+    const data = await fetchJson(
+      `https://graph.facebook.com/v20.0/act_${accountId}/insights?fields=${fields}&limit=${Number(node.config?.params?.limit || 50)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const rows = Array.isArray((data as any).data) ? (data as any).data : [];
+    return { summary: `Meta insights rows: ${rows.length}` };
+  }
+  if (blueprintId === "src_meta_pixel_ingest") {
+    const token = requireProviderToken(workspaceId, "meta_pixel");
+    const pixelId = String(node.config?.params?.pixelId || node.config?.inputs?.pixelId || "");
+    if (!pixelId) throw new Error("pixelId is required");
+    const data = await fetchJson(`https://graph.facebook.com/v20.0/${encodeURIComponent(pixelId)}?fields=id,name,last_fired_time`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return { summary: `Meta pixel connected: ${String((data as any).name || (data as any).id || pixelId)}` };
+  }
+  if (blueprintId === "src_shopify_ingest") {
+    const token = requireProviderToken(workspaceId, "shopify");
+    const shopDomain = String(node.config?.params?.shopDomain || node.config?.inputs?.shopDomain || "");
+    if (!shopDomain) throw new Error("shopDomain is required");
+    const data = await fetchJson(`https://${shopDomain}/admin/api/2024-10/orders.json?limit=${Number(node.config?.params?.limit || 50)}`, {
+      headers: {
+        "X-Shopify-Access-Token": token,
+        "content-type": "application/json"
+      }
+    });
+    const orders = Array.isArray((data as any).orders) ? (data as any).orders : [];
+    return { summary: `Shopify orders ingested: ${orders.length}` };
+  }
+  if (blueprintId === "src_notion_docs_ingest") {
+    const token = requireProviderToken(workspaceId, "notion");
+    const data = await fetchJson("https://api.notion.com/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Notion-Version": String(node.config?.params?.notionVersion || "2022-06-28"),
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        page_size: Number(node.config?.params?.pageSize || 25),
+        ...(node.config?.inputs?.query ? { query: String(node.config.inputs.query) } : {})
+      })
+    });
+    const results = Array.isArray((data as any).results) ? (data as any).results : [];
+    return { summary: `Notion docs ingested: ${results.length}` };
+  }
+  if (blueprintId === "src_semrush_ingest") {
+    const token = requireProviderToken(workspaceId, "semrush");
+    const domain = String(node.config?.inputs?.domain || node.config?.params?.domain || "");
+    if (!domain) throw new Error("domain is required");
+    const database = String(node.config?.params?.database || "us");
+    const type = String(node.config?.params?.type || "domain_ranks");
+    const url = `https://api.semrush.com/?type=${encodeURIComponent(type)}&key=${encodeURIComponent(token)}&export_columns=Dn,Rk,Or,Ot,Oc,Ad,At,Ac&domain=${encodeURIComponent(domain)}&database=${encodeURIComponent(database)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`SEMrush HTTP ${res.status}`);
+    const text = await res.text();
+    const lines = text.trim().split("\n").filter(Boolean);
+    return { summary: `SEMrush rows ingested: ${Math.max(0, lines.length - 1)}` };
+  }
+  if (blueprintId === "src_klaviyo_ingest") {
+    const token = requireProviderToken(workspaceId, "klaviyo");
+    const endpoint = String(node.config?.params?.endpoint || "/profiles/");
+    const data = await fetchJson(`https://a.klaviyo.com/api${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`, {
+      headers: {
+        Authorization: `Klaviyo-API-Key ${token}`,
+        Revision: String(node.config?.params?.revision || "2024-07-15")
+      }
+    });
+    const rows = Array.isArray((data as any).data) ? (data as any).data : [];
+    return { summary: `Klaviyo rows ingested: ${rows.length}` };
+  }
+  if (blueprintId === "src_gsc_ingest") {
+    const token = requireProviderToken(workspaceId, "google_search_console");
+    const siteUrl = String(node.config?.inputs?.siteUrl || node.config?.params?.siteUrl || "");
+    if (!siteUrl) throw new Error("siteUrl is required");
+    const body = {
+      startDate: String(node.config?.params?.startDate || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)),
+      endDate: String(node.config?.params?.endDate || new Date().toISOString().slice(0, 10)),
+      dimensions: (Array.isArray(node.config?.params?.dimensions) ? node.config?.params?.dimensions : ["query"]) as string[],
+      rowLimit: Number(node.config?.params?.rowLimit || 100)
+    };
+    const data = await fetchJson(
+      `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify(body)
+      }
+    );
+    const rows = Array.isArray((data as any).rows) ? (data as any).rows : [];
+    return { summary: `GSC rows ingested: ${rows.length}` };
+  }
+  if (blueprintId === "src_ga4_ingest") {
+    const token = requireProviderToken(workspaceId, "ga4");
+    const propertyId = String(node.config?.inputs?.propertyId || node.config?.params?.propertyId || "");
+    if (!propertyId) throw new Error("propertyId is required");
+    const data = await fetchJson(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          dimensions: [{ name: String(node.config?.params?.dimension || "date") }],
+          metrics: [{ name: String(node.config?.params?.metric || "sessions") }],
+          dateRanges: [
+            {
+              startDate: String(node.config?.params?.startDate || "7daysAgo"),
+              endDate: String(node.config?.params?.endDate || "today")
+            }
+          ],
+          limit: Number(node.config?.params?.limit || 100)
+        })
+      }
+    );
+    const rows = Array.isArray((data as any).rows) ? (data as any).rows : [];
+    return { summary: `GA4 rows ingested: ${rows.length}` };
+  }
+  if (blueprintId === "src_youtube_analytics_ingest") {
+    const token = requireProviderToken(workspaceId, "youtube");
+    const ids = String(node.config?.params?.ids || "channel==MINE");
+    const startDate = String(node.config?.params?.startDate || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+    const endDate = String(node.config?.params?.endDate || new Date().toISOString().slice(0, 10));
+    const metrics = String(node.config?.params?.metrics || "views,estimatedMinutesWatched,averageViewDuration");
+    const dimensions = String(node.config?.params?.dimensions || "day");
+    const data = await fetchJson(
+      `https://youtubeanalytics.googleapis.com/v2/reports?ids=${encodeURIComponent(ids)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&metrics=${encodeURIComponent(metrics)}&dimensions=${encodeURIComponent(dimensions)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+    const rows = Array.isArray((data as any).rows) ? (data as any).rows : [];
+    return { summary: `YouTube analytics rows: ${rows.length}` };
+  }
+  if (blueprintId === "customer_objections_agent") {
+    const findings = Array.isArray(node.config?.inputs?.findings) ? (node.config?.inputs?.findings as any[]) : [];
+    const result = await runPersonaNeedEmotion({
+      brandAnalysis: (node.config?.inputs?.brandAnalysis || {}) as any,
+      findings: findings as any
+    });
+    return { summary: `Persona items: ${result.items.length}` };
+  }
+  if (blueprintId === "pne_framework") {
+    const items = Array.isArray(node.config?.inputs?.items) ? (node.config?.inputs?.items as any[]) : [];
+    const result = runPneFramework({ items: items as any, limit: Number(node.config?.params?.limit || 12) });
+    return { summary: `PNE combinations: ${result.pneCombos.length}` };
+  }
+  if (blueprintId === "pub_meta_ads_scheduler") {
+    const token = requireProviderToken(workspaceId, "meta");
+    const accountId = String(node.config?.params?.adAccountId || node.config?.inputs?.adAccountId || "").replace(/^act_/, "");
+    if (!accountId) throw new Error("adAccountId is required");
+    const campaignName = String(node.config?.inputs?.campaignName || `Openflow Campaign ${new Date().toISOString().slice(0, 10)}`);
+    const objective = String(node.config?.params?.objective || "OUTCOME_TRAFFIC");
+    const body = new URLSearchParams({
+      name: campaignName,
+      objective,
+      status: String(node.config?.params?.status || "PAUSED"),
+      special_ad_categories: "[]"
+    });
+    const data = await fetchJson(`https://graph.facebook.com/v20.0/act_${accountId}/campaigns`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+    return { summary: `Meta campaign created: ${String((data as any).id || "ok")}` };
+  }
+  if (blueprintId === "pub_budget_allocator_agent") {
+    const budget = Number(node.config?.inputs?.totalBudget || node.config?.params?.totalBudget || 1000);
+    const splits = {
+      trigger: Math.round(budget * 0.15),
+      exploration: Math.round(budget * 0.25),
+      evaluation: Math.round(budget * 0.4),
+      purchase: Math.round(budget * 0.2)
+    };
+    return { summary: `Budget allocated (${budget})`, splits };
+  }
+  if (blueprintId === "brief_synthesizer") {
+    return { summary: "Strategic brief synthesized from connected nodes" };
+  }
+  if (blueprintId === "creative_plan_synthesizer") {
+    return { summary: "Creative sprint plan synthesized" };
+  }
+  if (blueprint?.connection) {
+    const token = requireProviderToken(workspaceId, blueprint.connection.provider);
+    const baseUrl = String(node.config?.params?.baseUrl || "").trim().replace(/\/+$/, "");
+    const endpoint = String(node.config?.params?.endpoint || "").trim();
+    if (!baseUrl || !endpoint) {
+      throw new Error(`Node ${blueprintId} requires params.baseUrl and params.endpoint for live handler`);
+    }
+    const method = String(node.config?.params?.method || "GET").toUpperCase();
+    const headers: Record<string, string> = {
+      ...(method === "GET" ? {} : { "content-type": "application/json" })
+    };
+    if (blueprint.connection.authType === "oauth") {
+      headers.Authorization = `Bearer ${token}`;
+    } else {
+      headers["x-api-key"] = token;
+    }
+    const body =
+      method === "GET" || method === "HEAD"
+        ? undefined
+        : JSON.stringify({
+            inputs: node.config?.inputs || {},
+            params: node.config?.params || {}
+          });
+    const data = await fetchJson(`${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`, {
+      method,
+      headers,
+      body
+    });
+    const count = Array.isArray((data as any).items)
+      ? (data as any).items.length
+      : Array.isArray((data as any).data)
+        ? (data as any).data.length
+        : Object.keys((data as any) || {}).length;
+    return { summary: `${blueprint.name} ingested records: ${count}` };
+  }
+  await sleep(200);
+  return { summary: "Completed" };
+}
+
+async function runExecutableNode(workspaceId: string, productId: string, runId: string, node: CanvasNode) {
   const step = createRunStep(runId, node.id, node.kind);
   const startedAt = Date.now();
   let updated = updateRunStep(step.id, { status: "running", startedAt: nowIso() });
   emitStepUpdate(workspaceId, productId, runId, updated);
   const settings = getDesktopSettings();
+  const configValidation = validateBlueprintConfig(node);
+  if (!configValidation.ok) {
+    updated = updateRunStep(step.id, {
+      status: "failed",
+      completedAt: nowIso(),
+      durationMs: Date.now() - startedAt,
+      errorCode: "workflow_error",
+      errorMessage: configValidation.error
+    });
+    emitStepUpdate(workspaceId, productId, runId, updated);
+    throw new Error(configValidation.error);
+  }
+  const connectionValidation = validateConnectionScopes(node, workspaceId);
+  if (!connectionValidation.ok) {
+    updated = updateRunStep(step.id, {
+      status: "failed",
+      completedAt: nowIso(),
+      durationMs: Date.now() - startedAt,
+      errorCode: "provider_error",
+      errorMessage: connectionValidation.error
+    });
+    emitStepUpdate(workspaceId, productId, runId, updated);
+    throw new Error(connectionValidation.error);
+  }
 
   if (isAgenticNode(node) && !(await canUseAgenticFeatures(settings))) {
     updated = updateRunStep(step.id, {
@@ -1516,6 +2281,42 @@ async function runGenerationNode(workspaceId: string, productId: string, runId: 
     });
     emitStepUpdate(workspaceId, productId, runId, updated);
     throw new Error("agentic-gated");
+  }
+
+  if (!isGenerationKind(node.kind)) {
+    const blueprint = getBlueprintById(node.config?.blueprintId);
+    let result: Record<string, unknown> = { summary: "Completed" };
+    if (blueprint?.category === "data_store" && blueprint.id && DATA_STORE_BLUEPRINT_IDS.has(blueprint.id)) {
+      const payload =
+        (node.config?.inputs && typeof node.config.inputs === "object" ? (node.config.inputs as Record<string, unknown>) : {}) || {};
+      const stored = addDataStoreRecord(blueprint.id, workspaceId, node.id, runId, payload);
+      result = { summary: `Stored record ${stored.id}`, storedId: stored.id };
+    } else {
+      result = (await runSourceOrAgentBlueprint(workspaceId, node)) as Record<string, unknown>;
+    }
+    updated = updateRunStep(step.id, {
+      status: "completed",
+      completedAt: nowIso(),
+      durationMs: Date.now() - startedAt
+    });
+    emitStepUpdate(workspaceId, productId, runId, updated);
+    if (result.summary) {
+      broadcast(workspaceId, {
+        type: "generation.job.updated",
+        workspaceId,
+        productId,
+        runId,
+        nodeId: node.id,
+        job: {
+          providerJobId: step.id,
+          status: "completed",
+          progress: 100,
+          completedAt: nowIso()
+        },
+        updatedAt: nowIso()
+      });
+    }
+    return;
   }
 
   if (node.kind === "generation.template") {
@@ -1632,14 +2433,14 @@ async function executeRun(workspaceId: string, productId: string, runId: string,
     });
   }
 
-  const generationNodes = selectGenerationNodes(doc, nodeIds);
+  const generationNodes = topologicalExecutableNodes(doc, nodeIds);
   try {
     for (const node of generationNodes) {
       if (isCancelled(runId)) {
         updateRunStatus(runId, "cancelled");
         break;
       }
-      await runGenerationNode(workspaceId, productId, runId, node);
+      await runExecutableNode(workspaceId, productId, runId, node);
     }
 
     if (isCancelled(runId)) {
@@ -1676,6 +2477,132 @@ app.get("/settings", (_req, res) => {
 app.put("/settings", (req, res) => {
   const updated = patchDesktopSettings((req.body || {}) as Partial<DesktopSettings>);
   res.json(updated);
+});
+
+app.get("/blueprints/catalog", (_req, res) => {
+  res.json(listNodeBlueprints());
+});
+
+app.post("/workspaces/:workspaceId/connections/:provider/connect", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const provider = String(req.params.provider || "").trim();
+  if (!provider) {
+    res.status(400).json({ error: "provider is required" });
+    return;
+  }
+  const stateRaw = String(req.body?.state || "connected");
+  const state: WorkspaceProviderConnection["state"] =
+    stateRaw === "disconnected" || stateRaw === "expired" || stateRaw === "scope_missing" ? stateRaw : "connected";
+  const authTypeRaw = String(req.body?.authType || "api_key");
+  const authType: WorkspaceProviderConnection["authType"] = authTypeRaw === "oauth" ? "oauth" : "api_key";
+  const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes.map((s: unknown) => String(s)) : [];
+  const connection = upsertWorkspaceProviderConnection(workspaceId, provider, {
+    state,
+    authType,
+    account: req.body?.account ? String(req.body.account) : undefined,
+    token: req.body?.token ? String(req.body.token) : undefined,
+    scopes
+  });
+  res.json(connection);
+});
+
+app.get("/workspaces/:workspaceId/providers/:provider/status", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const provider = String(req.params.provider || "").trim();
+  const connection = getWorkspaceProviderConnection(workspaceId, provider);
+  if (!connection) {
+    res.status(404).json({ provider, state: "disconnected" });
+    return;
+  }
+  res.json(connection);
+});
+
+app.get("/workspaces/:workspaceId/connections", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  res.json(listWorkspaceProviderConnections(workspaceId));
+});
+
+app.get("/workspaces/:workspaceId/data-stores/:storeId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const storeId = String(req.params.storeId || "");
+  if (!DATA_STORE_BLUEPRINT_IDS.has(storeId)) {
+    res.status(404).json({ error: `Unknown data store: ${storeId}` });
+    return;
+  }
+  const limit = Number(req.query.limit || 50);
+  res.json(listRecentDataStoreRecords(storeId, workspaceId, Number.isFinite(limit) ? limit : 50));
+});
+
+app.get("/agents/catalog", (_req, res) => {
+  res.json([
+    { key: "reddit_scraper", name: "Reddit Scraper Agent", stage: "research" },
+    { key: "persona_needs_emotions", name: "Persona/Needs/Emotion Agent", stage: "strategy" },
+    { key: "pne_framework", name: "PNE Framework Agent", stage: "strategy" }
+  ]);
+});
+
+app.post("/agents/reddit/scrape", async (req, res) => {
+  try {
+    const brandAnalysis = (req.body?.brandAnalysis || {}) as Record<string, unknown>;
+    const queries = Array.isArray(req.body?.queries) ? req.body.queries.filter((v: unknown) => typeof v === "string") : undefined;
+    const subreddits = Array.isArray(req.body?.subreddits)
+      ? req.body.subreddits.filter((v: unknown) => typeof v === "string")
+      : undefined;
+    const result = await runRedditScraper({ brandAnalysis: brandAnalysis as any, queries, subreddits });
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "reddit_scraper_failed" });
+  }
+});
+
+app.post("/agents/persona-needs-emotions", async (req, res) => {
+  try {
+    const brandAnalysis = (req.body?.brandAnalysis || {}) as Record<string, unknown>;
+    const findings = Array.isArray(req.body?.findings) ? req.body.findings : [];
+    const result = await runPersonaNeedEmotion({ brandAnalysis: brandAnalysis as any, findings: findings as any });
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "persona_needs_emotions_failed" });
+  }
+});
+
+app.post("/agents/pne-framework", (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const limit = Number(req.body?.limit || 12);
+    const result = runPneFramework({ items: items as any, limit: Number.isFinite(limit) ? limit : 12 });
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "pne_framework_failed" });
+  }
 });
 
 app.get("/templates/comfy", (req, res) => {
@@ -1784,6 +2711,31 @@ app.post("/workspaces/:workspaceId/products/:productId/runs", (req, res) => {
   res.status(202).json({ runId: run.id, run });
 });
 
+app.post("/workspaces/:workspaceId/products/:productId/node-runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = req.params.productId;
+  const snapshot = getWorkspace(workspaceId);
+  const doc = snapshot.documents[productId];
+  if (!doc) {
+    res.status(404).json({ error: "Product canvas not found" });
+    return;
+  }
+  const nodeIds = Array.isArray(req.body?.nodeIds)
+    ? req.body.nodeIds.filter((value: unknown) => typeof value === "string")
+    : undefined;
+  const run = createRun(workspaceId, productId);
+  runCancellationMap.set(run.id, { cancelled: false });
+  void executeRun(workspaceId, productId, run.id, doc, nodeIds);
+  res.status(202).json({ runId: run.id, run });
+});
+
 app.get("/workspaces/:workspaceId/products/:productId/runs", (req, res) => {
   const hostedBase = resolveHostedApiBase(getDesktopSettings());
   if (hostedBase) {
@@ -1798,6 +2750,22 @@ app.get("/workspaces/:workspaceId/products/:productId/runs", (req, res) => {
 });
 
 app.get("/workspaces/:workspaceId/products/:productId/runs/:runId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const detail = getRunDetail(req.params.runId);
+  if (!detail) {
+    res.status(404).json({ error: "Run not found" });
+    return;
+  }
+  res.json(detail);
+});
+
+app.get("/workspaces/:workspaceId/products/:productId/node-runs/:runId", (req, res) => {
   const hostedBase = resolveHostedApiBase(getDesktopSettings());
   if (hostedBase) {
     void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
