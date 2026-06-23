@@ -108,6 +108,18 @@ type GenerationRunDetail = {
   artifacts: GenerationArtifact[];
 };
 
+type PromptLibraryRecord = {
+  id: string;
+  workspaceId: string;
+  productId?: string;
+  nodeId?: string;
+  title: string;
+  prompt: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type GenerationJobRequest = {
   workflowRef: string;
   inputs: Record<string, unknown>;
@@ -381,6 +393,17 @@ CREATE TABLE IF NOT EXISTS workspace_provider_connections (
   scopes_json TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   PRIMARY KEY(workspace_id, provider)
+);
+CREATE TABLE IF NOT EXISTS prompt_library_records (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id TEXT,
+  node_id TEXT,
+  title TEXT NOT NULL,
+  prompt_text TEXT NOT NULL,
+  metadata_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );`);
 
 for (const tableName of DATA_STORE_BLUEPRINT_IDS) {
@@ -605,6 +628,51 @@ const readWorkspaceProviderConnectionsStmt = db.prepare(`
   FROM workspace_provider_connections
   WHERE workspace_id = ?
   ORDER BY provider ASC
+`);
+const insertPromptLibraryStmt = db.prepare(`
+  INSERT INTO prompt_library_records (
+    id, workspace_id, product_id, node_id, title, prompt_text, metadata_json, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const updatePromptLibraryStmt = db.prepare(`
+  UPDATE prompt_library_records
+  SET title = ?, prompt_text = ?, metadata_json = ?, product_id = ?, node_id = ?, updated_at = ?
+  WHERE id = ? AND workspace_id = ?
+`);
+const deletePromptLibraryStmt = db.prepare(`
+  DELETE FROM prompt_library_records
+  WHERE id = ? AND workspace_id = ?
+`);
+const readPromptLibraryStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    product_id as productId,
+    node_id as nodeId,
+    title,
+    prompt_text as prompt,
+    metadata_json as metadataJson,
+    created_at as createdAt,
+    updated_at as updatedAt
+  FROM prompt_library_records
+  WHERE id = ? AND workspace_id = ?
+  LIMIT 1
+`);
+const readPromptLibraryByWorkspaceStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    product_id as productId,
+    node_id as nodeId,
+    title,
+    prompt_text as prompt,
+    metadata_json as metadataJson,
+    created_at as createdAt,
+    updated_at as updatedAt
+  FROM prompt_library_records
+  WHERE workspace_id = ?
+  ORDER BY updated_at DESC
+  LIMIT ?
 `);
 const dataStoreInsertStmtCache = new Map<string, Database.Statement>();
 const dataStoreReadRecentStmtCache = new Map<string, Database.Statement>();
@@ -870,6 +938,152 @@ function upsertWorkspaceProviderConnection(
   return normalized;
 }
 
+function parsePromptLibraryRow(row: {
+  id: string;
+  workspaceId: string;
+  productId: string | null;
+  nodeId: string | null;
+  title: string;
+  prompt: string;
+  metadataJson: string;
+  createdAt: string;
+  updatedAt: string;
+}): PromptLibraryRecord {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    productId: row.productId || undefined,
+    nodeId: row.nodeId || undefined,
+    title: row.title,
+    prompt: row.prompt,
+    metadata: (() => {
+      try {
+        const parsed = JSON.parse(row.metadataJson || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    })(),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+function createPromptLibraryRecord(
+  workspaceId: string,
+  input: { productId?: string; nodeId?: string; title: string; prompt: string; metadata?: Record<string, unknown> }
+): PromptLibraryRecord {
+  const now = nowIso();
+  const id = newId("pr");
+  insertPromptLibraryStmt.run(
+    id,
+    workspaceId,
+    input.productId || null,
+    input.nodeId || null,
+    input.title,
+    input.prompt,
+    JSON.stringify(input.metadata || {}),
+    now,
+    now
+  );
+  const row = readPromptLibraryStmt.get(id, workspaceId) as
+    | {
+        id: string;
+        workspaceId: string;
+        productId: string | null;
+        nodeId: string | null;
+        title: string;
+        prompt: string;
+        metadataJson: string;
+        createdAt: string;
+        updatedAt: string;
+      }
+    | undefined;
+  if (!row) {
+    throw new Error("Failed to persist prompt record");
+  }
+  return parsePromptLibraryRow(row);
+}
+
+function updatePromptLibraryRecord(
+  workspaceId: string,
+  promptId: string,
+  input: { productId?: string; nodeId?: string; title: string; prompt: string; metadata?: Record<string, unknown> }
+): PromptLibraryRecord | null {
+  updatePromptLibraryStmt.run(
+    input.title,
+    input.prompt,
+    JSON.stringify(input.metadata || {}),
+    input.productId || null,
+    input.nodeId || null,
+    nowIso(),
+    promptId,
+    workspaceId
+  );
+  const row = readPromptLibraryStmt.get(promptId, workspaceId) as
+    | {
+        id: string;
+        workspaceId: string;
+        productId: string | null;
+        nodeId: string | null;
+        title: string;
+        prompt: string;
+        metadataJson: string;
+        createdAt: string;
+        updatedAt: string;
+      }
+    | undefined;
+  return row ? parsePromptLibraryRow(row) : null;
+}
+
+function deletePromptLibraryRecord(workspaceId: string, promptId: string) {
+  const before = readPromptLibraryStmt.get(promptId, workspaceId) as
+    | {
+        id: string;
+        workspaceId: string;
+        productId: string | null;
+        nodeId: string | null;
+        title: string;
+        prompt: string;
+        metadataJson: string;
+        createdAt: string;
+        updatedAt: string;
+      }
+    | undefined;
+  if (!before) return false;
+  deletePromptLibraryStmt.run(promptId, workspaceId);
+  return true;
+}
+
+function listPromptLibraryRecords(
+  workspaceId: string,
+  opts?: { productId?: string; nodeId?: string; q?: string; limit?: number }
+): PromptLibraryRecord[] {
+  const limit = Math.max(1, Math.min(500, Math.floor(Number(opts?.limit || 100))));
+  const rows = readPromptLibraryByWorkspaceStmt.all(workspaceId, limit) as Array<{
+    id: string;
+    workspaceId: string;
+    productId: string | null;
+    nodeId: string | null;
+    title: string;
+    prompt: string;
+    metadataJson: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  const q = String(opts?.q || "").trim().toLowerCase();
+  const productId = String(opts?.productId || "").trim();
+  const nodeId = String(opts?.nodeId || "").trim();
+  return rows
+    .map(parsePromptLibraryRow)
+    .filter((item) => (!productId || item.productId === productId))
+    .filter((item) => (!nodeId || item.nodeId === nodeId))
+    .filter((item) => {
+      if (!q) return true;
+      return `${item.title} ${item.prompt}`.toLowerCase().includes(q);
+    });
+}
+
 function normalizeSettings(raw: unknown): DesktopSettings {
   const candidate = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const entitlement = (candidate.entitlement && typeof candidate.entitlement === "object"
@@ -992,7 +1206,7 @@ function importComfyTemplatesFromRepo(
   let resolvedRepoPath = repoPath;
   let templatesRoot = resolve(resolvedRepoPath, "templates");
   if (!existsSync(templatesRoot)) {
-    const fallbackRepo = "/private/tmp/awesome-comfyui-templates";
+    const fallbackRepo = resolve(process.cwd(), "tmp", "awesome-comfyui-templates");
     const fallbackRoot = resolve(fallbackRepo, "templates");
     if (existsSync(fallbackRoot)) {
       resolvedRepoPath = fallbackRepo;
@@ -2559,6 +2773,101 @@ app.get("/workspaces/:workspaceId/data-stores/:storeId", (req, res) => {
   }
   const limit = Number(req.query.limit || 50);
   res.json(listRecentDataStoreRecords(storeId, workspaceId, Number.isFinite(limit) ? limit : 50));
+});
+
+app.get("/workspaces/:workspaceId/prompt-library", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const records = listPromptLibraryRecords(workspaceId, {
+    productId: req.query.productId ? String(req.query.productId) : undefined,
+    nodeId: req.query.nodeId ? String(req.query.nodeId) : undefined,
+    q: req.query.q ? String(req.query.q) : undefined,
+    limit: req.query.limit ? Number(req.query.limit) : undefined
+  });
+  res.json(records);
+});
+
+app.post("/workspaces/:workspaceId/prompt-library", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const title = String(req.body?.title || "").trim();
+  const prompt = String(req.body?.prompt || "").trim();
+  if (!title || !prompt) {
+    res.status(400).json({ error: "title and prompt are required" });
+    return;
+  }
+  const created = createPromptLibraryRecord(workspaceId, {
+    productId: req.body?.productId ? String(req.body.productId) : undefined,
+    nodeId: req.body?.nodeId ? String(req.body.nodeId) : undefined,
+    title,
+    prompt,
+    metadata: req.body?.metadata && typeof req.body.metadata === "object" ? (req.body.metadata as Record<string, unknown>) : {}
+  });
+  res.status(201).json(created);
+});
+
+app.put("/workspaces/:workspaceId/prompt-library/:promptId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const promptId = String(req.params.promptId || "");
+  const title = String(req.body?.title || "").trim();
+  const prompt = String(req.body?.prompt || "").trim();
+  if (!promptId || !title || !prompt) {
+    res.status(400).json({ error: "promptId, title and prompt are required" });
+    return;
+  }
+  const updated = updatePromptLibraryRecord(workspaceId, promptId, {
+    productId: req.body?.productId ? String(req.body.productId) : undefined,
+    nodeId: req.body?.nodeId ? String(req.body.nodeId) : undefined,
+    title,
+    prompt,
+    metadata: req.body?.metadata && typeof req.body.metadata === "object" ? (req.body.metadata as Record<string, unknown>) : {}
+  });
+  if (!updated) {
+    res.status(404).json({ error: `Prompt not found: ${promptId}` });
+    return;
+  }
+  res.json(updated);
+});
+
+app.delete("/workspaces/:workspaceId/prompt-library/:promptId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const promptId = String(req.params.promptId || "");
+  if (!promptId) {
+    res.status(400).json({ error: "promptId is required" });
+    return;
+  }
+  const ok = deletePromptLibraryRecord(workspaceId, promptId);
+  if (!ok) {
+    res.status(404).json({ error: `Prompt not found: ${promptId}` });
+    return;
+  }
+  res.status(204).send();
 });
 
 app.get("/agents/catalog", (_req, res) => {

@@ -109,14 +109,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .of-conn-btn.primary{border-color:rgba(91,141,236,.45);background:rgba(45,107,224,.22);color:#f1f6ff}
 .of-node-folder{
   border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);border-radius:10px;padding:9px 10px;
-  display:grid;grid-template-columns:16px 18px 1fr;gap:8px;align-items:center
+  display:grid;grid-template-columns:16px 18px 1fr;gap:8px;align-items:center;cursor:pointer
 }
 .of-node-folder:hover{background:rgba(255,255,255,.06)}
 .of-node-folder svg{width:16px;height:16px;stroke:#cfd8e8;stroke-width:1.9;fill:none}
 .of-node-folder-title{font:600 13px var(--sans);color:#fff}
 .of-node-item{
   margin-left:28px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);border-radius:9px;padding:8px 9px;
-  display:grid;grid-template-columns:16px 1fr;gap:8px;align-items:center
+  display:grid;grid-template-columns:16px 1fr;gap:8px;align-items:center;cursor:pointer
 }
 .of-node-item svg{width:15px;height:15px;stroke:#b8c5db;stroke-width:1.8;fill:none}
 .of-node-item-title{font:600 12px var(--sans);color:#e8eefb;line-height:1.2}
@@ -605,23 +605,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .rd-close:hover{background:rgba(255,255,255,.08);color:#fff}
 .rd-close svg{width:12px;height:12px;stroke-width:2}
 .rd-body{flex:1;overflow-y:auto;max-height:340px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent}
-.rd-prompt{
-  margin:10px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.03);overflow:hidden;
-}
-.rd-prompt-head{
-  padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;gap:8px
-}
-.rd-prompt-title{font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#fff}
-.rd-prompt-chip{
-  border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:2px 7px;
-  font:700 9px var(--mono);color:#e3ebfa;background:rgba(255,255,255,.05)
-}
-.rd-prompt-body{padding:9px 10px;display:grid;gap:7px}
-.rd-prompt-line{font:500 10px/1.45 var(--sans);color:#bdc8db}
-.rd-prompt-line strong{color:#fff;font-weight:700}
-.rd-prompt-list{display:grid;gap:5px}
-.rd-prompt-item{font:500 9.5px/1.35 var(--sans);color:#aebbd2}
-.rd-prompt-item code{font:600 9px var(--mono);color:#fff}
 /* Reddit mock */
 .mk-rt-head{background:#FF4500;padding:8px 12px;display:flex;align-items:center;gap:6px}
 .mk-rt-logo{font:900 10px sans-serif;color:#fff;letter-spacing:.02em}
@@ -1447,6 +1430,7 @@ let connDrag=null;
 let linkDraw=null;
 let nodePickerCtx=null;
 let leftSidebar={section:'openflow',query:'',open:true,templateFilter:'saved',connectionFilter:'all',nodeFilter:'all'};
+const nodeLibraryExpanded={customer:true,brand:true,presentation:true,performance:true};
 
 const PROJECTS=[
   {id:'motion-golden',name:'Motion Canvas · Golden Demo'},
@@ -1842,7 +1826,7 @@ function refreshNode(id){
 }
 
 // ── RUN PREVIEW DRAWER ────────────────────────────────────────
-async function openRunPreview(nodeId, runIdx, evt){
+function openRunPreview(nodeId, runIdx, evt){
   const n=gn(nodeId); if(!n) return;
   const r=n.runs[runIdx]; if(!r) return;
   // Header
@@ -1855,7 +1839,7 @@ async function openRunPreview(nodeId, runIdx, evt){
   const extLink=document.getElementById('rd-ext');
   extLink.href=r.url||'#'; extLink.textContent='Open in '+platName(n)+' ↗';
   // Body
-  document.getElementById('rd-body').innerHTML=buildMockUI(n,r)+renderPromptPanelLoading();
+  document.getElementById('rd-body').innerHTML=buildMockUI(n,r);
   // Position in world coordinates — to the right of the spoke node
   const drawer=document.getElementById('run-drawer');
   drawer.classList.remove('open');
@@ -1865,11 +1849,6 @@ async function openRunPreview(nodeId, runIdx, evt){
   drawer.style.left = wx + 'px';
   drawer.style.top  = wy + 'px';
   requestAnimationFrame(()=>drawer.classList.add('open'));
-  const reqId=++runDrawerReqId;
-  const promptCtx=await loadPromptContextForNode(n);
-  if(reqId!==runDrawerReqId) return;
-  const promptEl=document.getElementById('rd-prompt');
-  if(promptEl) promptEl.outerHTML=renderPromptPanel(promptCtx);
 }
 function closeRunDrawer(){document.getElementById('run-drawer').classList.remove('open');}
 function platName(n){
@@ -1889,92 +1868,6 @@ function buildMockUI(n,r){
   if(img.includes('meta')||img.includes('facebook')) return mockMeta(n,r);
   if(n.id==='pew') return mockPew(n,r);
   return mockGeneric(n,r);
-}
-function renderPromptPanelLoading(){
-  return `<div class="rd-prompt" id="rd-prompt">
-    <div class="rd-prompt-head">
-      <div class="rd-prompt-title">Prompt Pack</div>
-      <div class="rd-prompt-chip">Loading…</div>
-    </div>
-    <div class="rd-prompt-body">
-      <div class="rd-prompt-line">Loading prompt metadata for this node.</div>
-    </div>
-  </div>`;
-}
-function renderPromptPanel(ctx){
-  if(!ctx) return `<div class="rd-prompt" id="rd-prompt"><div class="rd-prompt-head"><div class="rd-prompt-title">Prompt Pack</div><div class="rd-prompt-chip">Unavailable</div></div><div class="rd-prompt-body"><div class="rd-prompt-line">No prompt mapping found for this node.</div></div></div>`;
-  if(ctx.gated) return `<div class="rd-prompt" id="rd-prompt"><div class="rd-prompt-head"><div class="rd-prompt-title">Prompt Pack</div><div class="rd-prompt-chip">Paid</div></div><div class="rd-prompt-body"><div class="rd-prompt-line"><strong>Access gated.</strong> Prompt packs require Openflow Pro or BYOK keys.</div></div></div>`;
-  const refs=(ctx.node&&ctx.node.promptAssets)||[];
-  const refRows=refs.slice(0,6).map(p=>`<div class="rd-prompt-item"><code>${esc(p)}</code></div>`).join('');
-  const refTail=refs.length>6?`<div class="rd-prompt-item">+${refs.length-6} more references</div>`:'';
-  const gen=ctx.generation||null;
-  return `<div class="rd-prompt" id="rd-prompt">
-    <div class="rd-prompt-head">
-      <div class="rd-prompt-title">Prompt Pack</div>
-      <div class="rd-prompt-chip">${esc(ctx.blueprintId||'node')}</div>
-    </div>
-    <div class="rd-prompt-body">
-      ${gen?`<div class="rd-prompt-line"><strong>Provider:</strong> ${esc(gen.provider||'')}</div>`:''}
-      ${gen?`<div class="rd-prompt-line"><strong>Model directive:</strong> ${esc(gen.modelPromptDirective||'')}</div>`:''}
-      <div class="rd-prompt-line"><strong>Prompt sources:</strong> ${refs.length}</div>
-      <div class="rd-prompt-list">${refRows||'<div class="rd-prompt-item">No source references mapped.</div>'}${refTail}</div>
-    </div>
-  </div>`;
-}
-function blueprintIdForCanvasNode(n){
-  if(n&&n.config&&n.config.blueprintId) return String(n.config.blueprintId);
-  const sid=sourceIdForNode(n);
-  if(sid&&BLUEPRINT_BY_SOURCE[sid]) return BLUEPRINT_BY_SOURCE[sid];
-  if(n&&n.id&&BLUEPRINT_BY_SOURCE[n.id]) return BLUEPRINT_BY_SOURCE[n.id];
-  return '';
-}
-async function fetchApiJsonFlexible(path){
-  for(const base of settingsApiTargets()){
-    try{
-      const r=await fetch(`${base}${path}`,{headers:{...apiAuthHeaders()}});
-      if(r.ok){
-        settingsApiBaseCache=base;
-        return {ok:true,status:r.status,data:await r.json()};
-      }
-      if(r.status===402||r.status===404){
-        settingsApiBaseCache=base;
-        let body={};
-        try{body=await r.json();}catch{}
-        return {ok:false,status:r.status,data:body};
-      }
-    }catch{}
-  }
-  return {ok:false,status:0,data:{error:'API unavailable'}};
-}
-async function loadPromptContextForNode(n){
-  const blueprintId=blueprintIdForCanvasNode(n);
-  if(!blueprintId) return null;
-  let nodeMeta=promptNodeCache[blueprintId]||null;
-  if(!nodeMeta){
-    const nodeRes=await fetchApiJsonFlexible(`/prompts/nodes/${encodeURIComponent(blueprintId)}`);
-    if(nodeRes.status===402) return {gated:true,blueprintId};
-    if(!nodeRes.ok) return {blueprintId,node:null,generation:null};
-    nodeMeta=nodeRes.data||null;
-    promptNodeCache[blueprintId]=nodeMeta;
-  }
-  let generationMeta=null;
-  if(/^gen_/.test(blueprintId)){
-    const sid=sourceIdForNode(n);
-    const workflowRef=workflowRefForNode(n,sid);
-    const provider=blueprintId.includes('gen_fal_')?'fal':'comfy';
-    const model=((n&&n.config&&n.config.params&&n.config.params.model)||'');
-    const genKey=`${blueprintId}::${workflowRef}::${provider}::${model}`;
-    generationMeta=promptGenerationCache[genKey]||null;
-    if(!generationMeta){
-      const qs=new URLSearchParams({nodeId:blueprintId,workflowRef,provider,model:String(model||'')}).toString();
-      const genRes=await fetchApiJsonFlexible(`/prompts/generation?${qs}`);
-      if(genRes.ok){
-        generationMeta=genRes.data||null;
-        promptGenerationCache[genKey]=generationMeta;
-      }
-    }
-  }
-  return {blueprintId,node:nodeMeta,generation:generationMeta};
 }
 function mockReddit(n,r){
   const liveFindings=Array.isArray(r&&r.data&&r.data.findings)?r.data.findings:[];
@@ -2850,9 +2743,6 @@ const LEFT_TEMPLATE_SETS={
 };
 let comfyTemplatesLibrary=[];
 let comfyTemplatesLoaded=false;
-let runDrawerReqId=0;
-const promptNodeCache={};
-const promptGenerationCache={};
 
 function isHostedRuntime(){
   return (desktopSettings.runtime&&desktopSettings.runtime.backendMode)==='hosted';
@@ -3513,7 +3403,14 @@ function listProviderConnections(){
     const local=(desktopSettings.integrations&&desktopSettings.integrations[meta.providerKey])||null;
     let state='disconnected';
     let statusLabel='Disconnected';
-    if(conn){
+    if(!isByokLocalMode()){
+      state='managed';
+      statusLabel='Managed by Openflow';
+      if(conn){
+        if(conn.state==='expired'){state='attention';statusLabel='Managed token expired';}
+        else if(conn.state==='scope_missing'){state='attention';statusLabel='Managed scope missing';}
+      }
+    }else if(conn){
       if(conn.state==='connected'){state='connected';statusLabel='Connected';}
       else if(conn.state==='expired'){state='attention';statusLabel='Expired';}
       else if(conn.state==='scope_missing'){state='attention';statusLabel='Scope Missing';}
@@ -3522,9 +3419,6 @@ function listProviderConnections(){
     }else if(local&&local.connected){
       state='connected';
       statusLabel='Connected';
-    }else if(!isByokLocalMode()){
-      state='managed';
-      statusLabel='Managed';
     }
     const lastUpdated=(conn&&(conn.updatedAt||conn.createdAt))||(local&&local.connectedAt)||'';
     return {
@@ -3571,27 +3465,41 @@ function renderConnectionGroups(rows){
 function renderNodeLibrary(filterKind){
   const groups=Object.entries(BRAIN_NODE_MAP).map(([brain,ids])=>({
     brain,
-    items:(ids||[]).map(id=>SOURCE_TYPES.find(s=>s.id===id)).filter(Boolean).map(s=>({name:s.name,sub:s.desc}))
+    items:(ids||[]).map(id=>SOURCE_TYPES.find(s=>s.id===id)).filter(Boolean).map(s=>({id:s.id,name:s.name,sub:s.desc}))
   }));
   const sections=groups.map(group=>{
     const nodes=leftFilter(group.items);
     if(!nodes.length) return '';
-    const rows=nodes.map(n=>`<div class="of-node-item">
+    const open=nodeLibraryExpanded[group.brain]!==false;
+    const rows=nodes.map(n=>`<div class="of-node-item" onclick="addNodeFromLibrary('${esc(group.brain)}','${esc(n.id)}')">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
       <div><div class="of-node-item-title">${esc(n.name)}</div><div class="of-node-item-sub">${esc(n.sub)}</div></div>
     </div>`).join('');
     return `<div class="of-sec">${esc(group.brain.toUpperCase())} BRAIN</div>
-      <div class="of-node-folder">
-        <svg viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
+      <div class="of-node-folder" onclick="toggleNodeGroup('${esc(group.brain)}')">
+        <svg viewBox="0 0 24 24"><polyline points="${open?'6,9 12,15 18,9':'9,6 15,12 9,18'}"/></svg>
         <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         <div class="of-node-folder-title">${esc(group.brain)} Nodes</div>
       </div>
-      ${rows}`;
+      ${open?rows:''}`;
   }).join('');
   if(filterKind==='blueprints'){
     return sections||'<div class="of-empty">No blueprints found</div>';
   }
   return `<div class="of-sec">BOOKMARKED</div><div class="of-empty">No bookmarks yet</div>${sections||'<div class="of-empty">No nodes found</div>'}`;
+}
+function toggleNodeGroup(brain){
+  nodeLibraryExpanded[brain]=!(nodeLibraryExpanded[brain]!==false);
+  renderLeftSidebar();
+}
+function addNodeFromLibrary(brain,sourceId){
+  const hub=nodes.find(n=>n.type==='hub'&&String(n.id)===String(brain));
+  if(!hub){
+    showToast('performance',`Missing ${brain} brain on canvas`);
+    return;
+  }
+  addSource(hub.id,sourceId);
+  showToast(hub.id,`Added ${sourceId} to ${hub.name}`);
 }
 async function connectProviderFromLeft(providerKey){
   const rows=listProviderConnections();
@@ -3630,6 +3538,7 @@ async function connectProviderFromLeft(providerKey){
       localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
     }
   }
+  const hasLocalCredentials=Boolean(row.authType==='oauth' ? account : token);
   try{
     const workspaceId=workspaceIdForApi();
     await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/connections/${encodeURIComponent(providerKey)}/connect`,{
@@ -3645,8 +3554,22 @@ async function connectProviderFromLeft(providerKey){
     });
     await loadProviderConnections(true);
     renderLeftSidebar();
-    showToast('settings',`${row.providerName} connected`);
+    showToast('settings',isByokLocalMode()?`${row.providerName} connected`:`${row.providerName} managed by Openflow`);
   }catch(err){
+    if(isByokLocalMode() && hasLocalCredentials){
+      providerConnectionsIndex[providerKey]={
+        provider:providerKey,
+        state:'connected',
+        authType:row.authType,
+        account,
+        scopes:[],
+        updatedAt:new Date().toISOString()
+      };
+      providerConnectionsLoadedAt=Date.now();
+      renderLeftSidebar();
+      showToast('settings',`${row.providerName} saved locally (backend unavailable)`);
+      return;
+    }
     showToast('settings',`${row.providerName} connection failed`);
   }
 }
