@@ -6,12 +6,12 @@
   "scripts": {
     "dev": "vite",
     "dev:local-backend": "tsx local-backend/server.ts",
-    "setup:rust": "bash ./scripts/ensure-rust.sh",
+    "setup:rust": "node ./scripts/ensure-rust.mjs",
     "prepersonal:dev": "npm run setup:rust",
     "personal:dev": "concurrently -k \"npm:dev:local-backend\" \"npm:tauri:dev\"",
     "personal:start": "npm install && npm run personal:dev",
     "build": "tsc -b && vite build",
-    "tauri:dev": "bash -lc 'source \"$HOME/.cargo/env\" 2>/dev/null || true; tauri dev'",
+    "tauri:dev": "node ./scripts/tauri-dev.mjs",
     "tauri:build": "tauri build"
   },
   "dependencies": {
