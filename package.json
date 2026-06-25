@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "dev:local-backend": "tsx local-backend/server.ts",
+    "lint": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "setup:rust": "bash ./scripts/ensure-rust.sh",
     "prepersonal:dev": "npm run setup:rust",
     "personal:dev": "concurrently -k \"npm:dev:local-backend\" \"npm:tauri:dev\"",
@@ -24,16 +28,20 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/ws": "^8.5.13",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
+    "jsdom": "^29.1.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vite": "^6.0.2"
+    "vite": "^6.0.2",
+    "vitest": "^4.1.9"
   }
 }
