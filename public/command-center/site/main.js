@@ -168,6 +168,7 @@
   }
 
   /* ── hero live pipeline simulation ──────────────────────── */
+  const ENABLE_SIMULATED_NOTIFICATIONS = false;
   (function(){
     var sim = document.getElementById('flowsim');
     if(!sim) return;
@@ -399,10 +400,10 @@
       startConvo();
       burstInputs();
       setTimeout(spawnReel, 3200);
-      setTimeout(notify, 1800);
+      if(ENABLE_SIMULATED_NOTIFICATIONS) setTimeout(notify, 1800);
       setInterval(burstInputs, 2800);
       setTimeout(function(){ setInterval(spawnReel, 5200); }, 3200);
-      setInterval(notify, 5200);
+      if(ENABLE_SIMULATED_NOTIFICATIONS) setInterval(notify, 5200);
     }
     if('IntersectionObserver' in window){
       var fio = new IntersectionObserver(function(es){

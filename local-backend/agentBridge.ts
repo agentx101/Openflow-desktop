@@ -24,11 +24,28 @@ export type PersonaNeedEmotion = {
 };
 
 const APIFY_BASE = "https://api.apify.com/v2";
-const APIFY_ACTOR_ID = "tW0tdmu7XAIoNezk2";
+const APIFY_ACTOR_IDS = [
+  "tW0tdmu7XAIoNezk2",
+  "harshmaur~reddit-scraper-pro",
+  "harshmaur~reddit-scraper",
+  "trudax~reddit-scraper",
+  "epctex~reddit-scraper"
+];
 const PULLPUSH_BASE = "https://api.pullpush.io/reddit";
+const FETCH_TIMEOUT_MS = 12000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs: number = FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function defaultQueries(brand: BrandAnalysisInput): { queries: string[]; subreddits: string[] } {
@@ -57,24 +74,36 @@ function defaultQueries(brand: BrandAnalysisInput): { queries: string[]; subredd
 async function scrapeViaApify(queries: string[], subreddits: string[], apiToken: string): Promise<RedditFinding[]> {
   const findings: RedditFinding[] = [];
   const seen = new Set<string>();
-  const batches: Array<{ searchList: string[]; subRedditList?: string[]; resultsLimit: number }> = [
-    { searchList: queries.slice(0, 8), resultsLimit: 50 }
-  ];
-  if (subreddits.length) batches.push({ searchList: queries.slice(0, 4), subRedditList: subreddits, resultsLimit: 30 });
+  const startUrls = new Set<string>();
+  for (const sub of subreddits.slice(0, 10)) {
+    for (const q of queries.slice(0, 4)) {
+      startUrls.add(`https://www.reddit.com/r/${encodeURIComponent(sub)}/search/?q=${encodeURIComponent(q)}&sort=new&t=year`);
+    }
+  }
+  for (const q of queries.slice(0, 8)) {
+    startUrls.add(`https://www.reddit.com/search/?q=${encodeURIComponent(q)}&sort=new&t=year`);
+  }
 
-  for (const batch of batches) {
+  for (const actorId of APIFY_ACTOR_IDS) {
     try {
-      const runRes = await fetch(`${APIFY_BASE}/acts/${APIFY_ACTOR_ID}/runs?token=${apiToken}`, {
+      const runRes = await fetchWithTimeout(`${APIFY_BASE}/acts/${actorId}/runs?token=${apiToken}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...batch,
-          sortBy: "new",
-          over18: false,
-          proxy: { useApifyProxy: true }
+          searchSort: "new",
+          searchTime: "year",
+          startUrls: Array.from(startUrls).slice(0, 40).map((url) => ({ url })),
+          maxPostsCount: 160,
+          maxCommentsCount: 160,
+          maxCommentsPerPost: 20,
+          maxCommunitiesCount: 20,
+          proxy: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] }
         })
       });
-      if (!runRes.ok) continue;
+      if (!runRes.ok) {
+        if (runRes.status === 403 || runRes.status === 404) continue;
+        return findings;
+      }
       const runData = (await runRes.json()) as { data?: { id?: string; defaultDatasetId?: string } };
       const runId = runData.data?.id;
       if (!runId) continue;
@@ -82,7 +111,7 @@ async function scrapeViaApify(queries: string[], subreddits: string[], apiToken:
       let status = "RUNNING";
       for (let i = 0; i < 60 && status === "RUNNING"; i += 1) {
         await sleep(3000);
-        const statusRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${apiToken}`);
+        const statusRes = await fetchWithTimeout(`${APIFY_BASE}/actor-runs/${runId}?token=${apiToken}`);
         if (!statusRes.ok) continue;
         const statusData = (await statusRes.json()) as { data?: { status?: string } };
         status = String(statusData.data?.status || "UNKNOWN");
@@ -91,32 +120,37 @@ async function scrapeViaApify(queries: string[], subreddits: string[], apiToken:
 
       const datasetId = runData.data?.defaultDatasetId;
       if (!datasetId) continue;
-      const itemsRes = await fetch(`${APIFY_BASE}/datasets/${datasetId}/items?token=${apiToken}&limit=500`);
+      const itemsRes = await fetchWithTimeout(`${APIFY_BASE}/datasets/${datasetId}/items?token=${apiToken}&limit=500`);
       if (!itemsRes.ok) continue;
       const items = (await itemsRes.json()) as Array<Record<string, unknown>>;
       for (const item of items) {
-        const text = String(item.body || item.selftext || item.title || "").trim();
-        if (text.length < 30 || text === "[deleted]" || text === "[removed]") continue;
-        const snippet = text.slice(0, 1000);
-        const key = snippet.slice(0, 100);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const permalink = String(item.permalink || item.url || "");
-        const sourceUrl = permalink.startsWith("http") ? permalink : `https://www.reddit.com${permalink}`;
-        const subreddit = String(item.subreddit || item.subreddit_name_prefixed || "").replace(/^r\//, "");
-        const author = String(item.author || item.user || "");
+      const dataType = String(item.dataType || "");
+      const text = String(item.body || item.selftext || item.title || "").trim();
+      if (text.length < 30 || text === "[deleted]" || text === "[removed]") continue;
+      const snippet = text.slice(0, 1000);
+      const key = snippet.slice(0, 100);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const permalink = String(item.permalink || item.url || item.postUrl || "");
+      const sourceUrl = permalink.startsWith("http") ? permalink : `https://www.reddit.com${permalink}`;
+      const subreddit = String(
+        item.subreddit || item.parsedCommunityName || item.communityName || item.subreddit_name_prefixed || ""
+      ).replace(/^r\//, "");
+      const author = String(item.author || item.username || item.user || "");
         findings.push({
           text: snippet,
           sourceUrl,
-          sourceTitle: String(item.title || `Post in r/${subreddit || "unknown"}`),
-          score: Number(item.score || item.ups || 0),
+          sourceTitle: String(item.title || item.postTitle || `Post in r/${subreddit || "unknown"}`),
+          score: Number(item.upVotes || item.score || item.ups || 0),
           subreddit,
-          type: item.body ? "comment" : "post",
+          type: dataType === "comment" || item.body ? "comment" : "post",
           author: author && author !== "[deleted]" ? author : undefined
         });
       }
+      if (findings.length > 0) return findings;
     } catch {
-      // continue
+      // try next actor
+      continue;
     }
   }
   return findings;
@@ -129,8 +163,8 @@ async function scrapeViaPullPush(queries: string[]): Promise<RedditFinding[]> {
     try {
       const params = new URLSearchParams({ q: query, size: "50", sort: "desc", sort_type: "score" });
       const [subRes, comRes] = await Promise.all([
-        fetch(`${PULLPUSH_BASE}/search/submission/?${params}`),
-        fetch(`${PULLPUSH_BASE}/search/comment/?${params}`)
+        fetchWithTimeout(`${PULLPUSH_BASE}/search/submission/?${params}`),
+        fetchWithTimeout(`${PULLPUSH_BASE}/search/comment/?${params}`)
       ]);
       const submissions = subRes.ok ? ((await subRes.json()) as { data?: Array<Record<string, unknown>> }).data || [] : [];
       const comments = comRes.ok ? ((await comRes.json()) as { data?: Array<Record<string, unknown>> }).data || [] : [];

@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:local-backend": "tsx local-backend/server.ts",
+    "lint": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
+    "test": "node -e \"console.log('No tests configured yet')\"",
     "setup:rust": "node ./scripts/ensure-rust.mjs",
     "prepersonal:dev": "npm run setup:rust",
     "personal:dev": "concurrently -k \"npm:dev:local-backend\" \"npm:tauri:dev\"",
