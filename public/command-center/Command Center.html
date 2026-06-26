@@ -410,6 +410,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .spoke-chevron{width:12px;height:12px;flex-shrink:0;color:var(--ink-700);
   transition:transform 200ms ease;stroke-width:2.2}
 .spoke-card.expanded .spoke-chevron{transform:rotate(180deg)}
+.spoke-menu-btn{
+  width:18px;height:18px;flex-shrink:0;border:none;border-radius:6px;
+  background:transparent;color:var(--ink-600);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 120ms
+}
+.spoke-menu-btn:hover{background:rgba(255,255,255,.08);color:var(--ink-200)}
+.spoke-menu-btn svg{width:12px;height:12px;stroke-width:2.1}
 /* Collapsible body */
 /* Inner clip wrapper so badge can overflow the card */
 .spoke-inner{border-radius:10px;overflow:hidden}
@@ -452,6 +459,51 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   font:600 9px var(--sans);letter-spacing:.05em;text-transform:uppercase;cursor:pointer
 }
 .spoke-editor-btn:hover{background:rgba(45,107,224,.26)}
+.spoke-instr{
+  margin:0 0 8px;
+  padding:7px;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:8px;
+  background:rgba(255,255,255,.03);
+}
+.spoke-instr-lbl{
+  font:700 8px var(--mono);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--ink-500);
+  margin-bottom:5px;
+}
+.spoke-instr-ta{
+  width:100%;
+  min-height:56px;
+  resize:vertical;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:7px;
+  background:rgba(7,12,20,.8);
+  color:#eef3ff;
+  padding:7px 8px;
+  font:500 9px/1.4 var(--sans);
+  outline:none;
+}
+.spoke-instr-ta:focus{border-color:rgba(138,180,248,.46)}
+.spoke-instr-row{
+  margin-top:6px;
+  display:flex;
+  gap:6px;
+}
+.spoke-mini-btn{
+  flex:1;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);
+  color:#e3eaf7;
+  border-radius:7px;
+  padding:5px 8px;
+  font:600 8px var(--sans);
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.spoke-mini-btn:hover{background:rgba(255,255,255,.11)}
 
 /* Shared badge for spoke + output */
 .node-badge{
@@ -601,13 +653,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 .cxi:hover{background:rgba(255,255,255,.07);color:#fff}
 .cxi.danger{color:#EF4444}
 .cxi.danger:hover{background:rgba(239,68,68,.1)}
+.cxi.hidden{display:none}
 
 /* ── BRAIN SVG ───────────────────────────────────────────────── */
 .hub-brain{width:96px;height:96px;flex-shrink:0;display:block;object-fit:contain}
 
 /* ── RUN PREVIEW DRAWER ──────────────────────────────── */
 #run-drawer{
-  position:absolute;width:300px;
+  position:absolute;width:420px;
   background:#0E1528;border:1px solid rgba(255,255,255,.11);
   border-radius:14px;z-index:50;display:flex;flex-direction:column;
   opacity:0;pointer-events:none;
@@ -635,23 +688,173 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
   color:var(--ink-500);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 120ms}
 .rd-close:hover{background:rgba(255,255,255,.08);color:#fff}
 .rd-close svg{width:12px;height:12px;stroke-width:2}
-.rd-body{flex:1;overflow-y:auto;max-height:340px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent}
-/* Reddit mock */
-.mk-rt-head{background:#FF4500;padding:8px 12px;display:flex;align-items:center;gap:6px}
-.mk-rt-logo{font:900 10px sans-serif;color:#fff;letter-spacing:.02em}
-.mk-rt-sort{padding:7px 12px 4px;display:flex;gap:5px}
-.mk-rt-chip{padding:3px 8px;border-radius:20px;font:600 8.5px sans-serif;color:#818181;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);cursor:pointer}
-.mk-rt-chip.on{background:#FF4500;color:#fff;border-color:#FF4500}
-.mk-rt-post{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:8px;cursor:pointer;transition:background 120ms}
-.mk-rt-post:hover{background:rgba(255,255,255,.03)}
-.mk-rt-votes{display:flex;flex-direction:column;align-items:center;gap:0;min-width:22px}
-.mk-rt-vn{font:700 8px sans-serif;color:#d7dadc}
-.mk-rt-arr{color:#FF4500;font-size:11px;line-height:1.1}
-.mk-rt-pc{flex:1}
-.mk-rt-sub{font:600 7.5px sans-serif;color:#818181;margin-bottom:2px}
-.mk-rt-ptitle{font:600 9.5px/1.3 sans-serif;color:#d7dadc}
-.mk-rt-meta{font:7.5px sans-serif;color:#818181;margin-top:3px;display:flex;gap:8px}
-.mk-rt-tag{display:inline-block;padding:1px 5px;border-radius:2px;font:700 7px sans-serif;margin-right:4px}
+.rd-body{flex:1;min-height:0}
+/* Reddit insights modal */
+.mk-ri-wrap{
+  height:540px;
+  display:grid;
+  grid-template-rows:1fr auto;
+}
+.mk-ri-scroll{
+  overflow:auto;
+  min-height:0;
+}
+.mk-ri-body{
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.mk-ri-card{
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.025);
+  border-radius:14px;
+  padding:12px;
+  display:grid;
+  gap:9px;
+}
+.mk-ri-top{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+}
+.mk-ri-check{
+  position:relative;
+  margin-top:2px;
+  flex:0 0 auto;
+}
+.mk-ri-check input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.mk-ri-check-box{
+  width:18px;height:18px;
+  border-radius:5px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.03);
+  display:grid;
+  place-items:center;
+  transition:.14s ease;
+}
+.mk-ri-check-box svg{
+  width:11px;height:11px;
+  stroke:#fff;
+  stroke-width:2.5;
+  opacity:0;
+  transform:scale(.8);
+  transition:.14s ease;
+}
+.mk-ri-check input:checked + .mk-ri-check-box{
+  background:#2D6BE0;
+  border-color:#2D6BE0;
+  box-shadow:0 0 0 3px rgba(45,107,224,.14);
+}
+.mk-ri-check input:checked + .mk-ri-check-box svg{
+  opacity:1;
+  transform:scale(1);
+}
+.mk-ri-copy{min-width:0;flex:1}
+.mk-ri-kicker{
+  font:700 8px/1 var(--mono);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#5B8DEC;
+  margin-bottom:7px;
+}
+.mk-ri-text{
+  font:600 12px/1.5 var(--sans);
+  color:#fff;
+  letter-spacing:-.01em;
+}
+.mk-ri-ref{
+  border-top:1px solid rgba(255,255,255,.08);
+  padding-top:8px;
+  display:grid;
+  gap:5px;
+}
+.mk-ri-ref-label{
+  color:#667085;
+  font:700 7px/1 var(--mono);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.mk-ri-thread{
+  border:1px solid rgba(255,255,255,.05);
+  background:rgba(255,255,255,.015);
+  border-radius:10px;
+  padding:8px 9px;
+}
+.mk-ri-thread-sub{
+  font:600 7px/1 var(--sans);
+  color:#667085;
+  margin-bottom:4px;
+}
+.mk-ri-thread-title{
+  font:500 9px/1.35 var(--sans);
+  color:#95A0B5;
+}
+.mk-ri-thread-link{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin-top:6px;
+  color:#9ec1ff;
+  text-decoration:none;
+  font:600 7px/1 var(--mono);
+}
+.mk-ri-thread-link:hover{text-decoration:underline}
+.mk-ri-thread-meta{
+  margin-top:6px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  color:#667085;
+  font:7px/1 var(--mono);
+}
+.mk-ri-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px;
+  border-top:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(180deg, rgba(14,21,40,.82), rgba(14,21,40,.98));
+}
+.mk-ri-selection{
+  color:#95A0B5;
+  font:600 10px/1.3 var(--sans);
+}
+.mk-ri-cta{
+  border:none;
+  cursor:pointer;
+  border-radius:12px;
+  padding:10px 14px;
+  background:#2D6BE0;
+  color:#fff;
+  font:700 10px/1 var(--sans);
+  letter-spacing:.04em;
+  white-space:nowrap;
+}
+.mk-ri-archive{
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.02);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.mk-ri-archive summary{
+  list-style:none;
+  cursor:pointer;
+  color:#95A0B5;
+  font:700 9px/1 var(--mono);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.mk-ri-archive summary::-webkit-details-marker{display:none}
+.mk-ri-archive-body{
+  margin-top:10px;
+  display:grid;
+  gap:8px;
+}
 /* Google Ads mock */
 .mk-ga-head{background:#1a73e8;padding:8px 12px;display:flex;align-items:center;gap:7px}
 .mk-ga-logo{font:700 10px sans-serif;color:#fff}
@@ -1037,7 +1240,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 
 <!-- STATUS BAR -->
 <div id="sb">
-  <span class="sb-live"><span class="sb-dot"></span>4 brains live · 3 autonomous</span>
+  <span class="sb-live" id="sb-live"><span class="sb-dot"></span>4 brains live · 3 autonomous</span>
   <span style="margin-left:auto">Space+drag to pan · Scroll to zoom · Click hub to expand · F to fit</span>
 </div>
 
@@ -1066,6 +1269,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink-900);font-
 
 <!-- CONTEXT MENU -->
 <div id="ctx">
+  <div class="cxi hidden" id="cx-run-every">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+    <span>Run every...</span>
+  </div>
+  <div class="cxi hidden" id="cx-select-insights">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <span>Select insights</span>
+  </div>
+  <div class="cxi hidden" id="cx-save-context">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+    <span>Save context</span>
+  </div>
+  <div class="cxi hidden" id="cx-view-memory">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+    <span>View memory</span>
+  </div>
   <div class="cxi danger" id="cx-del">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
     Delete node
@@ -1271,7 +1490,10 @@ function openComfyCloudSettings(){
 }
 let comfyGenSeq=1;
 const DESKTOP_SETTINGS_STORAGE_KEY='openflow.desktop.settings.v1';
+const HOSTED_SUBSCRIPTION_STORAGE_KEY='openflow.web.subscription.v1';
 const FIRST_LOGIN_ASSET_BOOTSTRAP_KEY='openflow.cc.first_login_assets.v1';
+const ONBOARDING_SEED_KEY='openflow.onboarding.seed';
+const ONBOARDING_GENERATE_COUNT_KEY='openflow.onboarding.generateClicks';
 const SETTINGS_API_CANDIDATES=(function(){
   const fromLs=localStorage.getItem('openflow.settingsApiBase')||'';
   const host=window.location.hostname||'localhost';
@@ -1307,6 +1529,14 @@ const DEFAULT_DESKTOP_SETTINGS={
   }
 };
 let desktopSettings=JSON.parse(JSON.stringify(DEFAULT_DESKTOP_SETTINGS));
+let onboardingSeedData=(function(){
+  try{
+    const raw=localStorage.getItem(ONBOARDING_SEED_KEY);
+    if(!raw) return null;
+    const parsed=JSON.parse(raw);
+    return parsed&&typeof parsed==='object' ? parsed : null;
+  }catch(_e){ return null; }
+})();
 const OPENFLOW_PLAN_NODE_LIMITS={standard:10,creator:25,pro:Number.POSITIVE_INFINITY};
 const OPENFLOW_PLAN_LABELS={standard:'Basic',creator:'Advanced',pro:'Pro'};
 const OPENFLOW_PLAN_CATALOG={
@@ -1397,75 +1627,47 @@ let nodes=[
      {r:'a',c:'## Priority Optimization\n\n**Top issue:** Creative fatigue in retargeting.\n\n→ CTR down 18% WoW\n→ CPC up 14% WoW\n→ Frequency > 3.8 on top ad set\n\n**Action:** Shift 20% spend to fresh UGC variants and cap frequency at 2.5.\n\nExpected: CPC -8% to -12% within 5 days.'}
    ]},
 
-  // ── SPOKE SOURCES
-  {id:'reddit', type:'spoke',x:60, y:200,color:'#FF4500',name:'Vaseline Reviews',ico:'Rd',img:'https://www.google.com/s2/favicons?domain=reddit.com&sz=64',
-   connected:true,sync:'2h ago',notifCount:2,
-   runs:[
-     {date:'May 24',summary:'847 threads · 3 core tensions surfaced',count:'847',url:'https://reddit.com/r/SkincareAddiction/search/?q=vaseline'},
-     {date:'May 18',summary:'Competitive mentions: CeraVe, Aquaphor, Eucerin',count:'312',url:'https://reddit.com/r/beauty/search/?q=vaseline+moisturizer'},
-     {date:'May 10',summary:'Gen Z sentiment: authentic ≠ clinical',count:'204',url:'https://reddit.com/search/?q=vaseline+review'},
-   ]},
-  {id:'pew',    type:'spoke',x:60, y:480,color:'#1A52B8',name:'Gen Z Insights',ico:'Pw',img:null,
-   connected:true,sync:'today',notifCount:0,
-   runs:[
-     {date:'May 23',summary:'5 tension areas: identity, affordability, trust',count:'5 themes',url:'https://www.pewresearch.org/topic/generations-age/generations/'},
-     {date:'Apr 30',summary:'Gen Z beauty spend report 2024 — $38B market',count:'42 pages',url:'https://www.pewresearch.org/'},
-   ]},
-  {id:'adsm',   type:'spoke',x:650,y:140,color:'#0D9488',name:'Paid Campaigns',ico:'AM',img:'https://www.google.com/s2/favicons?domain=ads.google.com&sz=64',
-   connected:true,sync:'live',notifCount:1,
-   runs:[
-     {date:'Live',  summary:'$84K spend · ROAS 3.2× · CPM $8.40 ↑12%',count:'90d',url:'https://ads.google.com/aw/overview'},
-     {date:'Apr',   summary:'Top creative: UGC testimonial series',count:'$31K',url:'https://ads.google.com/aw/ads'},
-     {date:'Mar',   summary:'Awareness push — reach 4.2M impressions',count:'$28K',url:'https://ads.google.com/aw/campaigns'},
-   ]},
-  {id:'motion', type:'spoke',x:910,y:140,color:'#0D9488',name:'Creative Analysis',ico:'Mo',img:null,
-   connected:true,sync:'4h ago',notifCount:0,
-   runs:[
-     {date:'May 24',summary:'147 ads — UGC dominates at 68% of top decile',count:'147 ads',url:'#'},
-     {date:'May 17',summary:'Hook analysis: problem-first wins by 2.4×',count:'89 ads',url:'#'},
-   ]},
-  {id:'meta',   type:'spoke',x:1490,y:210,color:'#F59E0B',name:'Competitor Creatives',ico:'Mb',img:'https://www.google.com/s2/favicons?domain=meta.com&sz=64',
-   connected:true,sync:'yesterday',notifCount:0,
-   runs:[
-     {date:'May 23',summary:'24 competitors · UGC dominance 71%',count:'24 brands',url:'https://www.facebook.com/ads/library/'},
-     {date:'May 16',summary:'CeraVe running 14 active ads — clinical tone',count:'14 ads',url:'https://www.facebook.com/ads/library/?search_type=keyword_unordered&q=cerave'},
-     {date:'May 9', summary:'Aquaphor pivot to lifestyle — 8 new creatives',count:'8 ads',url:'https://www.facebook.com/ads/library/?search_type=keyword_unordered&q=aquaphor'},
-   ]},
-  {id:'ga4perf',type:'spoke',x:1980,y:170,color:'#EC4899',name:'Performance Dashboard',ico:'Pf',img:'https://www.google.com/s2/favicons?domain=analytics.google.com&sz=64',
-   connected:true,sync:'live',notifCount:1,
-   runs:[
-     {date:'Live',summary:'Revenue +11% · MER 2.9 · CPA $28.4',count:'7d',url:'https://analytics.google.com/'},
-     {date:'May 24',summary:'Landing page test B +9.4% CVR',count:'A/B',url:'#'},
-   ]},
+  // ── SPOKE SOURCES (Onboarding minimal set)
+  {id:'reddit', type:'spoke',x:70, y:190,color:'#FF4500',name:'Reddit',ico:'Rd',img:'https://www.google.com/s2/favicons?domain=reddit.com&sz=64',
+   connected:true,sync:'just now',notifCount:1,runs:[]},
+  {id:'brand_kit', type:'spoke',x:610,y:140,color:'#0D9488',name:'Brand Kit',ico:'Bk',img:null,
+   connected:true,sync:'website extracted',notifCount:0,runs:[]},
+  {id:'brand_guidelines', type:'spoke',x:930,y:140,color:'#0D9488',name:'Brand Guidelines',ico:'Bg',img:null,
+   connected:true,sync:'voice loaded',notifCount:0,runs:[]},
+  {id:'athleisure_templates', type:'spoke',x:1080,y:530,color:'#F59E0B',name:'Athleisure Templates',ico:'At',img:null,
+   connected:true,sync:'3 presets ready',notifCount:0,runs:[]},
+  {id:'comfyui', type:'spoke',x:1390,y:530,color:'#EC4899',name:'Comfy UI Node',ico:'Cf',img:null,
+   connected:true,sync:'3 presets ready',notifCount:0,runs:[]},
 
-  // ── OUTPUT NODES
-  {id:'synth',   type:'output',x:600, y:720,color:'#2D6BE0',av:'◉',name:'Brief Synthesizer',role:'Strategic Writer',  status:'ready',notifCount:0},
-  {id:'assetgen',type:'output',x:980, y:720,color:'#E11D48',av:'✦',name:'Asset Generator',  role:'Creative Producer',status:'idle', notifCount:0},
+  // ── BRIEF OUTPUT
+  {id:'synth',type:'brief',x:980,y:520,color:'#2563EB',av:'▣',name:'Creative Brief',role:'Strategy Output',status:'idle',notifCount:0,runs:[],briefData:null},
 
-  // ── BRIEF DOCUMENT
-  {id:'brief',type:'brief',x:620,y:970},
+  // ── STORYBOARD OUTPUT
+  {id:'storyboard',type:'brief',x:1510,y:520,color:'#8B5CF6',av:'▤',name:'Storyboard',role:'Scene Plan',status:'idle',notifCount:0,runs:[],storyboardData:null},
+
+  // ── OUTPUT NODE
+  {id:'assetgen',type:'output',x:980, y:760,color:'#E11D48',av:'✦',name:'Asset Generator',role:'Creative Producer',status:'idle',notifCount:0},
 ];
 
 const CONNS=[
   // Spoke → Hub
-  {f:'reddit',  t:'customer',     color:'#7C3AED',kind:'spoke'},
-  {f:'pew',     t:'customer',     color:'#7C3AED',kind:'spoke'},
-  {f:'adsm',    t:'brand',        color:'#0D9488',kind:'spoke'},
-  {f:'motion',  t:'brand',        color:'#0D9488',kind:'spoke'},
-  {f:'meta',    t:'presentation', color:'#F59E0B',kind:'spoke'},
-  {f:'ga4perf', t:'performance',  color:'#EC4899',kind:'spoke'},
-  // Hub → Synth
-  {f:'customer',    t:'synth',    color:'#2D6BE0',kind:'flow'},
-  {f:'brand',       t:'synth',    color:'#2D6BE0',kind:'flow'},
-  {f:'presentation',t:'synth',    color:'#2D6BE0',kind:'flow'},
-  {f:'performance', t:'synth',    color:'#2D6BE0',kind:'flow'},
+  {f:'reddit',              t:'customer',     color:'#7C3AED',kind:'spoke'},
+  {f:'brand_kit',           t:'brand',        color:'#0D9488',kind:'spoke'},
+  {f:'brand_guidelines',    t:'brand',        color:'#0D9488',kind:'spoke'},
+  {f:'athleisure_templates',t:'presentation', color:'#F59E0B',kind:'spoke'},
+  {f:'comfyui',             t:'presentation', color:'#F59E0B',kind:'spoke'},
+  // Hub → Brief
+  {f:'customer',    t:'synth',    color:'#2563EB',kind:'flow'},
+  {f:'brand',       t:'synth',    color:'#2563EB',kind:'flow'},
+  {f:'presentation',t:'synth',    color:'#2563EB',kind:'flow'},
+  // Brief → Storyboard
+  {f:'synth',       t:'storyboard', color:'#8B5CF6',kind:'flow'},
   // Hub → AssetGen
+  {f:'storyboard',  t:'assetgen', color:'#E11D48',kind:'flow'},
   {f:'customer',    t:'assetgen', color:'#E11D48',kind:'flow'},
   {f:'brand',       t:'assetgen', color:'#E11D48',kind:'flow'},
   {f:'presentation',t:'assetgen', color:'#E11D48',kind:'flow'},
   {f:'performance', t:'assetgen', color:'#E11D48',kind:'flow'},
-  // Synth → Brief
-  {f:'synth',t:'brief',color:'#D4A853',kind:'output'},
 ];
 
 // ── CANVAS STATE ──────────────────────────────────────────────
@@ -1641,6 +1843,83 @@ ${mkPort(n)}
 </div>`;
 }
 
+function brandProgressMarkup(){
+  const profile=brandProfileCache||{};
+  const kit=profileSection(profile,'brandKit');
+  const guidelines=profileSection(profile,'brandGuidelines');
+  const assets=Array.isArray(kit.assetCandidates)?kit.assetCandidates:[];
+  const props=profileList(kit.valueProps,6);
+  const tones=profileList(guidelines.toneTraits,6);
+  const pillars=profileList(guidelines.messagingPillars,6);
+  const steps=[
+    {label:'Website scanned',done:Boolean(profile.brandUrl)},
+    {label:'Brand kit inferred',done:Boolean(assets.length||props.length)},
+    {label:'Voice mapped',done:Boolean(tones.length||pillars.length)}
+  ];
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    ${steps.map(step=>`<div style="padding:6px 8px;border-radius:999px;border:1px solid ${step.done?'rgba(56,189,248,.4)':'rgba(255,255,255,.08)'};background:${step.done?'rgba(56,189,248,.12)':'rgba(255,255,255,.03)'};font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:${step.done?'#E0F2FE':'#9FB0C7'}">${step.done?'Done':'Live'} · ${esc(step.label)}</div>`).join('')}
+  </div>`;
+}
+function brandHubContextPanel(n){
+  if(n.id!=='brand') return '';
+  const profile=brandProfileCache||{};
+  if(!profile || !profile.brandUrl){
+    return `<div style="padding:0 12px 12px">
+      <div style="border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;background:rgba(255,255,255,.03)">
+        <div style="font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#7DD3FC;margin-bottom:8px">Brand Brain</div>
+        <div style="font:11px/1.5 sans-serif;color:#D5DBE7">Brand context will appear here as soon as website analysis completes.</div>
+        ${ONBOARDING_FIRST_LOAD?brandProgressMarkup():''}
+      </div>
+    </div>`;
+  }
+  const kit=profileSection(profile,'brandKit');
+  const guidelines=profileSection(profile,'brandGuidelines');
+  const valueProps=profileList(kit.valueProps,4);
+  const pillars=profileList(guidelines.messagingPillars,4);
+  const tone=profileList(guidelines.toneTraits,4);
+  const products=profileList(profile.productsCatalog,4);
+  const badges=[
+    profile.category||'Category pending',
+    profile.targetAudience||'Audience pending',
+    tone[0]||'Tone pending'
+  ].filter(Boolean);
+  return `<div style="padding:0 12px 12px">
+    <div style="border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;background:linear-gradient(180deg,rgba(13,148,136,.12),rgba(255,255,255,.03))">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#7DD3FC;margin-bottom:6px">Brand Brain</div>
+          <div style="font:700 15px var(--display);color:#fff">${esc(profile.companyName||'Brand context')}</div>
+          <div style="font:10px/1.45 sans-serif;color:#AFC3DA">${esc(profile.brandUrl||'')}</div>
+        </div>
+        <div style="padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#DCEBFF">Editable locally</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        ${badges.map(v=>`<span style="padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:9px sans-serif;color:#E5EDF8">${esc(v)}</span>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;background:rgba(255,255,255,.025)">
+          <div style="font:700 9px sans-serif;color:#fff;margin-bottom:6px">Value props</div>
+          ${(valueProps.length?valueProps:['Waiting for extraction']).map(v=>`<div style="font:9px/1.45 sans-serif;color:#D5DBE7;margin-bottom:4px">• ${esc(v)}</div>`).join('')}
+        </div>
+        <div style="border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;background:rgba(255,255,255,.025)">
+          <div style="font:700 9px sans-serif;color:#fff;margin-bottom:6px">Messaging pillars</div>
+          ${(pillars.length?pillars:['Waiting for synthesis']).map(v=>`<div style="font:9px/1.45 sans-serif;color:#D5DBE7;margin-bottom:4px">• ${esc(v)}</div>`).join('')}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start">
+        <div style="border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;background:rgba(255,255,255,.025)">
+          <div style="font:700 9px sans-serif;color:#fff;margin-bottom:6px">Product catalog</div>
+          ${(products.length?products:['Add product detail in Brand Kit']).map(v=>`<div style="font:9px/1.45 sans-serif;color:#D5DBE7;margin-bottom:4px">• ${esc(v)}</div>`).join('')}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="spoke-connect-btn" style="width:100%;background:#0D9488;color:#001414" onclick="event.stopPropagation();openLatestRunPreview('brand_kit')">Open Brand Kit</button>
+          <button class="spoke-connect-btn" style="width:100%;background:#14B8A6;color:#001414" onclick="event.stopPropagation();openLatestRunPreview('brand_guidelines')">Open Guidelines</button>
+        </div>
+      </div>
+      ${ONBOARDING_FIRST_LOAD?brandProgressMarkup():''}
+    </div>
+  </div>`;
+}
 function mkChatPanel(n){
   const msgs=n.msgs.map(m=>{
     if(m.r==='u') return `<div class="msg-u-row"><div class="msg-u">${esc(m.c)}</div></div>`;
@@ -1660,6 +1939,7 @@ function mkChatPanel(n){
   </button>
 </div>
 <div class="chat-thread" id="thr-${n.id}">${msgs}${typing}</div>
+${brandHubContextPanel(n)}
 <div class="chat-bar">
   <input class="chat-inp" id="inp-${n.id}" placeholder="Ask ${esc(n.name.split(' ')[0])}…"
     onmousedown="event.stopPropagation()" onkeydown="chatKey(event,'${n.id}')">
@@ -1695,6 +1975,10 @@ function mkSpoke(n){
   const comfyMini = isComfy
     ? `<div class="out-mini" onclick="event.stopPropagation()"><iframe src="${comfySrc}" title="Comfy mini canvas"></iframe></div>`
     : '';
+  const menuBtn = `<button class="spoke-menu-btn" title="Node properties"
+    onclick="event.stopPropagation();openNodeMenu('${n.id}',event)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+  </button>`;
 
   let body = '';
   if(n.connected === false){
@@ -1719,9 +2003,9 @@ function mkSpoke(n){
           onclick="event.stopPropagation();runAgentNode('${n.id}')">${n.runState==='running'?'Running…':'Run Agent'}</button>`
       : '';
     const redditTools=isReddit?`
-      <div style="display:flex;gap:6px;margin:0 0 8px">
-        <button class="spoke-connect-btn" style="flex:1;background:rgba(255,255,255,.08);color:#fff" onclick="event.stopPropagation();configureRedditFrequency('${n.id}')">Every ${Math.max(1,Number(n.frequencyHours||REDDIT_DEFAULT_FREQUENCY_HOURS))}h</button>
-        <button class="spoke-connect-btn" style="flex:1;background:rgba(255,255,255,.08);color:#fff" onclick="event.stopPropagation();sendInsightsToCustomerBrain('${n.id}')">Select Insights</button>
+      <div class="spoke-instr" onclick="event.stopPropagation()">
+        <div class="spoke-instr-lbl">Run Instructions (Optional)</div>
+        <textarea id="${instructionInputId(n.id)}" class="spoke-instr-ta" placeholder="Add context like audience focus, painpoints to prioritize, competitor threads, campaign angle…"></textarea>
       </div>`:'';
     const runs = (n.runs||[]).map((r,ri)=>`
       <div class="run-card" onclick="event.stopPropagation();openRunPreview('${n.id}',${ri},event)">
@@ -1744,12 +2028,75 @@ function mkSpoke(n){
     <div class="spoke-head">
       <div class="spoke-ico" style="color:${n.color};background:${n.color}16">${icoHtml}</div>
       <div class="spoke-nm">${esc(n.name)}</div>
+      ${menuBtn}
       <svg class="spoke-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6,9 12,15 18,9"/></svg>
     </div>
     <div class="spoke-body">${body}</div>
   </div>
 </div>
 ${mkPort(n)}`;
+}
+
+function onboardingPresetRows(){
+  const defaults=[
+    {id:'OF-ATH-CF-001',name:'UGC Product Showcase'},
+    {id:'OF-ATH-CF-002',name:'Lifestyle Loop Variant'},
+    {id:'OF-ATH-CF-003',name:'Offer Burst Final'}
+  ];
+  try{
+    const fromSeed=onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.presets;
+    if(Array.isArray(fromSeed)&&fromSeed.length){
+      return fromSeed.slice(0,3).map(function(p,idx){
+        return {
+          id:String((p&&p.id)||(`OF-ATH-CF-00${idx+1}`)),
+          name:String((p&&p.name)||(`Preset ${idx+1}`))
+        };
+      });
+    }
+  }catch(_e){}
+  return defaults;
+}
+function onboardingPresetPanel(){
+  if(!onboardingSeedData) return '';
+  const rows=onboardingPresetRows().map(function(p,idx){
+    return `<button class="out-open-btn" style="margin-top:8px" onclick="runOnboardingPreset(${idx},event)">
+      ${esc(p.id)} · ${esc(p.name)} · Click to generate
+    </button>`;
+  }).join('');
+  return `<div class="out-runs" style="margin-top:8px"><div class="out-run"><div class="out-run-meta">Athleisure starter presets</div></div></div>${rows}`;
+}
+function runOnboardingPreset(index,event){
+  event&&event.stopPropagation();
+  const rows=onboardingPresetRows();
+  const preset=rows[index]||rows[0];
+  var count=0;
+  try{ count=Number(localStorage.getItem(ONBOARDING_GENERATE_COUNT_KEY)||'0')||0; }catch(_e){ count=0; }
+  count += 1;
+  try{ localStorage.setItem(ONBOARDING_GENERATE_COUNT_KEY,String(count)); }catch(_e){}
+
+  const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const assetNode=gn('assetgen');
+  if(assetNode){
+    assetNode.runs=[{
+      date:stamp,
+      summary:`${preset.name} · queued`,
+      count:'1',
+      genCode:nextGenerationCode(),
+      wfName:preset.name,
+      wfCode:workflowCode(preset.id),
+      url:'#'
+    },...(assetNode.runs||[])].slice(0,12);
+    assetNode.status='processing';
+    refreshNode('assetgen');
+    syncProjectState();
+  }
+  if(count >= 3){
+    demoForceSignupLock=true;
+    openDemoSignupModal();
+    return;
+  }
+  demoForceSignupLock=false;
+  openDemoSignupModal();
 }
 
 function mkOutput(n){
@@ -1774,6 +2121,7 @@ function mkOutput(n){
   const openBtn=isAsset?`<button class="out-open-btn" onclick="openComfyEditor('assetgen',event)">Open Comfy UI</button>`:'';
   const runFlowBtn=`<button class="out-open-btn" style="margin-top:8px;opacity:${n.flowState==='running'?'.7':'1'}" ${n.flowState==='running'?'disabled':''}
     onclick="event.stopPropagation();runOutputFlow('${n.id}')">${n.flowState==='running'?'Running Flow…':'Run Upstream Flow'}</button>`;
+  const onboardingPanel=(isAsset&&onboardingSeedData)?onboardingPresetPanel():'';
   const cardCls=n.id==='assetgen'?'output-card asset-big':'output-card';
   return `
 <div class="${cardCls}">
@@ -1787,53 +2135,127 @@ function mkOutput(n){
   </div>
   ${openBtn}
   ${runFlowBtn}
+  ${onboardingPanel}
   ${runList}
 </div>`;
 }
 
-function mkBrief(){
+function mkBrief(n){
+  if(n&&n.id==='storyboard'){
+    const board=(n&&n.storyboardData&&typeof n.storyboardData==='object')?n.storyboardData:{};
+    const scenes=Array.isArray(board.scenes)?board.scenes:[];
+    const audio=(board.audioDirection&&typeof board.audioDirection==='object')?board.audioDirection:{};
+    const script=(board.script&&typeof board.script==='object')?board.script:{};
+    const runBtn=`<button class="brief-btn primary" onclick="event.stopPropagation();runOutputFlow('storyboard')">${n&&n.flowState==='running'?'Running…':'Run Storyboard'}</button>`;
+    const statusBtn=`<button class="brief-btn" onclick="event.stopPropagation();loadPresentationStoryboardState(true)">Refresh</button>`;
+    const title=board.title||'Storyboard + Script';
+    const subtitle=board.code
+      ? `${board.code} · ${board.format||'Format'} · ${board.pacing||'Pacing'}`
+      : 'Generated from the latest creative brief';
+    return `
+<div class="brief-card">
+  <div class="brief-ruler" style="background:linear-gradient(90deg,#8B5CF6,#6366F1)"></div>
+  <div class="brief-top">
+    <div class="brief-eyebrow">Generation Blueprint</div>
+    <div class="brief-h">${esc(title)}</div>
+    <div class="brief-sub">${esc(subtitle)}</div>
+  </div>
+  <div class="brief-body">
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Opening Hook</div>
+      <div class="brief-quote">"${esc(board.hook||script.opening||'Run the Storyboard node to turn the brief into scenes and script.')}"</div>
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Scene Plan</div>
+      ${(scenes.length?scenes:[{index:1,shotIntent:'Awaiting storyboard',visualCue:'Brief variants will become a scene plan here.',durationSec:'--'}]).slice(0,5).map(scene=>`<div class="brief-item">S${esc(String(scene.index||''))} · ${esc(scene.shotIntent||scene.beat||'Beat')} · ${esc(String(scene.durationSec||''))}s</div>`).join('')}
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Voiceover Direction</div>
+      <div class="brief-sec-txt">${esc(script.fullVoiceover||'Once the brief is ready, this node will generate opening, body, and CTA voiceover lines.')}</div>
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Audio Notes</div>
+      <div class="brief-item">${esc(audio.voiceoverTone||'credible, direct, fast-moving')}</div>
+      <div class="brief-item">${esc(audio.musicMood||'energetic with clean build')}</div>
+      <div class="brief-item">${esc(Array.isArray(audio.sfxNotes)?audio.sfxNotes[0]:'scene transitions and end-card emphasis')}</div>
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Generation Handoff</div>
+      <div class="brief-item">${esc(board.format||'Format not set')}</div>
+      <div class="brief-item">${esc(board.objective||'Storyboard outputs will feed generation presets')}</div>
+      <div class="brief-item">${esc(board.briefCode?`Source brief ${board.briefCode}`:'Waiting for creative brief source')}</div>
+    </div>
+  </div>
+  <div class="brief-actions">
+    ${statusBtn}
+    <button class="brief-btn" onclick="event.stopPropagation();openLeftSection('workflows')">${esc(Array.isArray(n&&n.runs)?`${n.runs.length} version${n.runs.length===1?'':'s'}`:'Versions')}</button>
+    ${runBtn}
+  </div>
+</div>`;
+  }
+  const brief=(n&&n.briefData&&typeof n.briefData==='object')?n.briefData:{};
+  const refs=Array.isArray(brief.references)?brief.references:[];
+  const formats=Array.isArray(brief.formatSuggestions)?brief.formatSuggestions:[];
+  const proofPoints=Array.isArray(brief.proofPoints)?brief.proofPoints:[];
+  const hooks=Array.isArray(brief.hookOptions)?brief.hookOptions:[];
+  const metrics=(brief.successMetrics&&typeof brief.successMetrics==='object')?brief.successMetrics:{};
+  const sourceSummary=(brief.sourceSummary&&typeof brief.sourceSummary==='object')?brief.sourceSummary:{};
+  const runBtn=`<button class="brief-btn primary" onclick="event.stopPropagation();runOutputFlow('synth')">${n&&n.flowState==='running'?'Running…':'Run Brief'}</button>`;
+  const statusBtn=`<button class="brief-btn" onclick="event.stopPropagation();loadPresentationBriefState(true)">Refresh</button>`;
+  const title=brief.title||'Strategic Creative Brief';
+  const subtitle=brief.code
+    ? `${brief.code} · ${brief.audience||'Audience'} · ${brief.angle||'Angle'}`
+    : 'Synthesised from Customer · Brand · Presentation stacks';
   return `
 <div class="brief-card">
   <div class="brief-ruler"></div>
   <div class="brief-top">
     <div class="brief-eyebrow">Output Document</div>
-    <div class="brief-h">Strategic Creative Brief</div>
-    <div class="brief-sub">Synthesised from Customer · Brand · Presentation stacks</div>
+    <div class="brief-h">${esc(title)}</div>
+    <div class="brief-sub">${esc(subtitle)}</div>
   </div>
   <div class="brief-body">
     <div class="brief-sec">
       <div class="brief-sec-lbl">Core Insight</div>
-      <div class="brief-sec-txt">Gen Z beauty buyers are in evaluation mode — not discovery. The brand is over-indexed on awareness hooks and under-indexed on conversion-stage proof content.</div>
+      <div class="brief-sec-txt">${esc(brief.insightCore||'Run the Creative Brief node to convert research into a structured brief artifact.')}</div>
     </div>
     <div class="brief-sec">
       <div class="brief-sec-lbl">Target Moment</div>
-      <div class="brief-sec-txt">11pm doomscroll discovery + pre-event intent spike (7–10 days out). Pattern-interrupt hook required at Trigger stage.</div>
+      <div class="brief-sec-txt">${esc(brief.targetMoment||'Waiting for Customer, Brand, and PNE context.')}</div>
     </div>
     <div class="brief-sec">
       <div class="brief-sec-lbl">Creative Hook</div>
-      <div class="brief-quote">"I wasted $200 on [category] until I found this."</div>
+      <div class="brief-quote">"${esc(brief.hook||hooks[0]||'No hook generated yet.')}"</div>
     </div>
     <div class="brief-sec">
-      <div class="brief-sec-lbl">Format Split</div>
-      <div class="brief-item">Trigger (15%) — 3-sec thumb-stopper, problem-first</div>
-      <div class="brief-item">Exploration (25%) — 30–60s demo, transformation arc</div>
-      <div class="brief-item">Evaluation (40%) — UGC testimonials + storefront link</div>
-      <div class="brief-item">Purchase (20%) — Offer-forward, time-anchored</div>
+      <div class="brief-sec-lbl">Format Suggestions</div>
+      ${(formats.length?formats:['Awaiting brief variants']).slice(0,4).map(item=>`<div class="brief-item">${esc(item)}</div>`).join('')}
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Proof + Objections</div>
+      ${(proofPoints.length?proofPoints:[brief.offerFrame||'Offer framing will appear here after generation.']).slice(0,3).map(item=>`<div class="brief-item">${esc(item)}</div>`).join('')}
+    </div>
+    <div class="brief-sec">
+      <div class="brief-sec-lbl">Evidence Coverage</div>
+      <div class="brief-item">${esc(String(sourceSummary.selectedInsightCount||0))} shortlisted insights</div>
+      <div class="brief-item">${esc(String(sourceSummary.mentionCount||0))} total mentions</div>
+      <div class="brief-item">${esc(String(sourceSummary.uniqueUserCount||0))} unique users</div>
+      ${refs[0]?`<div class="brief-item">${esc(refs[0].subreddit||'reddit')} · ${esc(refs[0].title||refs[0].url||'Reference thread')}</div>`:''}
     </div>
     <div class="brief-sec">
       <div class="brief-sec-lbl">Success Metrics</div>
       <div class="brief-kpi-row">
-        <div class="brief-kpi"><div class="brief-kpi-n">+18%</div><div class="brief-kpi-l">Net rev MoM</div></div>
-        <div class="brief-kpi"><div class="brief-kpi-n">4.0×</div><div class="brief-kpi-l">ROAS target</div></div>
-        <div class="brief-kpi"><div class="brief-kpi-n">&gt;4s</div><div class="brief-kpi-l">Hook hold</div></div>
-        <div class="brief-kpi"><div class="brief-kpi-n">2.8%</div><div class="brief-kpi-l">CVR target</div></div>
+        <div class="brief-kpi"><div class="brief-kpi-n">${esc(metrics.hookHoldTarget||'>4s')}</div><div class="brief-kpi-l">Hook hold</div></div>
+        <div class="brief-kpi"><div class="brief-kpi-n">${esc(metrics.ctrTarget||'1.5%+')}</div><div class="brief-kpi-l">CTR target</div></div>
+        <div class="brief-kpi"><div class="brief-kpi-n">${esc(metrics.cvrTarget||'2.5%+')}</div><div class="brief-kpi-l">CVR target</div></div>
+        <div class="brief-kpi"><div class="brief-kpi-n">${esc(metrics.roasTarget||'3.0x+')}</div><div class="brief-kpi-l">ROAS target</div></div>
       </div>
     </div>
   </div>
   <div class="brief-actions">
-    <button class="brief-btn">Notion</button>
-    <button class="brief-btn">Slack</button>
-    <button class="brief-btn primary">Export PDF</button>
+    ${statusBtn}
+    <button class="brief-btn" onclick="event.stopPropagation();openLeftSection('workflows')">${esc(Array.isArray(n&&n.runs)?`${n.runs.length} version${n.runs.length===1?'':'s'}`:'Versions')}</button>
+    ${runBtn}
   </div>
 </div>`;
 }
@@ -1880,9 +2302,13 @@ function refreshNode(id){
 }
 
 // ── RUN PREVIEW DRAWER ────────────────────────────────────────
-function openRunPreview(nodeId, runIdx, evt){
+async function openRunPreview(nodeId, runIdx, evt){
   const n=gn(nodeId); if(!n) return;
-  const r=n.runs[runIdx]; if(!r) return;
+  let r=n.runs[runIdx]; if(!r) return;
+  if(sourceIdForNode(n)==='reddit'){
+    r=await ensureRedditRunData(n,r);
+    syncProjectState();
+  }
   // Header
   document.getElementById('rd-topbar').style.background=n.color;
   const icoEl=document.getElementById('rd-plat-ico');
@@ -1894,17 +2320,88 @@ function openRunPreview(nodeId, runIdx, evt){
   extLink.href=r.url||'#'; extLink.textContent='Open in '+platName(n)+' ↗';
   // Body
   document.getElementById('rd-body').innerHTML=buildMockUI(n,r);
-  // Position in world coordinates — to the right of the spoke node
   const drawer=document.getElementById('run-drawer');
   drawer.classList.remove('open');
-  const gap=14; // world-unit gap between card and drawer
-  const wx = n.x + (NW.spoke||158) + gap;
-  const wy = n.y;
+  const pos=getRunDrawerPosition(n,drawer);
+  const wx = pos.x;
+  const wy = pos.y;
   drawer.style.left = wx + 'px';
   drawer.style.top  = wy + 'px';
   requestAnimationFrame(()=>drawer.classList.add('open'));
 }
 function closeRunDrawer(){document.getElementById('run-drawer').classList.remove('open');}
+function connectorSidesForNode(node){
+  const sides={left:0,right:0,top:0,bottom:0};
+  conns.forEach(conn=>{
+    if(conn.f!==node.id && conn.t!==node.id) return;
+    const pts=getConnPts(conn);
+    if(!pts) return;
+    const p=conn.f===node.id ? {x:pts.fx,y:pts.fy} : {x:pts.tx,y:pts.ty};
+    const {w,h,cx,cy}=nodeDims(node);
+    if(isNear(p.x,node.x+w) && isNear(p.y,cy)) sides.right += 1;
+    else if(isNear(p.x,node.x) && isNear(p.y,cy)) sides.left += 1;
+    else if(isNear(p.x,cx) && isNear(p.y,node.y)) sides.top += 1;
+    else if(isNear(p.x,cx) && isNear(p.y,node.y+h)) sides.bottom += 1;
+  });
+  return sides;
+}
+function getRunDrawerPosition(node,drawer){
+  const gap=14;
+  const dims=nodeDims(node);
+  const drawerW=(drawer&&drawer.offsetWidth)||420;
+  const drawerH=(drawer&&drawer.offsetHeight)||602;
+  const vp=vpEl();
+  const worldLeft=(-tf.x)/tf.s;
+  const worldTop=(-tf.y)/tf.s;
+  const worldRight=worldLeft+(vp.offsetWidth/tf.s);
+  const worldBottom=worldTop+(vp.offsetHeight/tf.s);
+  const freeLeft=(node.x-gap)-worldLeft;
+  const freeRight=worldRight-(node.x+dims.w+gap);
+  const freeTop=(node.y-gap)-worldTop;
+  const freeBottom=worldBottom-(node.y+dims.h+gap);
+  const drawerWorldW=drawerW/tf.s;
+  const drawerWorldH=drawerH/tf.s;
+  const sides=connectorSidesForNode(node);
+  const scores={
+    left:(sides.left? -100000 : 0)+freeLeft,
+    right:(sides.right? -100000 : 0)+freeRight,
+    top:(sides.top? -100000 : 0)+freeTop,
+    bottom:(sides.bottom? -100000 : 0)+freeBottom
+  };
+  let side='right';
+  let best=-Infinity;
+  Object.entries(scores).forEach(([k,v])=>{
+    if(v>best){best=v;side=k;}
+  });
+  if(best<-50000){
+    const horiz=Math.max(freeLeft,freeRight);
+    const vert=Math.max(freeTop,freeBottom);
+    side=horiz>=vert?(freeRight>=freeLeft?'right':'left'):(freeBottom>=freeTop?'bottom':'top');
+  }
+  let x=node.x+dims.w+gap;
+  let y=node.y;
+  if(side==='left'){
+    x=node.x-drawerWorldW-gap;
+    y=node.y;
+  }else if(side==='right'){
+    x=node.x+dims.w+gap;
+    y=node.y;
+  }else if(side==='top'){
+    x=(freeRight>=freeLeft)?(node.x+dims.w+gap):(node.x-drawerWorldW-gap);
+    y=node.y-drawerWorldH-gap;
+  }else if(side==='bottom'){
+    x=(freeRight>=freeLeft)?(node.x+dims.w+gap):(node.x-drawerWorldW-gap);
+    y=node.y+dims.h+gap;
+  }
+  const minX=worldLeft+8/tf.s;
+  const maxX=worldRight-drawerWorldW-8/tf.s;
+  const minY=worldTop+8/tf.s;
+  const maxY=worldBottom-drawerWorldH-8/tf.s;
+  return {
+    x:Math.max(minX,Math.min(maxX,x)),
+    y:Math.max(minY,Math.min(maxY,y))
+  };
+}
 function platName(n){
   if(n.img&&n.img.includes('reddit')) return 'Reddit';
   if(n.img&&n.img.includes('google')&&n.img.includes('ads')) return 'Google Ads';
@@ -1914,6 +2411,8 @@ function platName(n){
 }
 function buildMockUI(n,r){
   const sid=sourceIdForNode(n);
+  if(sid==='brand_kit') return mockBrandKit(n,r);
+  if(sid==='brand_guidelines') return mockBrandGuidelines(n,r);
   if(sid==='persona_needs_emotions') return mockPersona(n,r);
   if(sid==='pne_framework') return mockPne(n,r);
   const img=n.img||'';
@@ -1923,38 +2422,150 @@ function buildMockUI(n,r){
   if(n.id==='pew') return mockPew(n,r);
   return mockGeneric(n,r);
 }
+function persistBrandProfileLocal(profile, sourceLabel, opts){
+  const next=ensureBrandProfileShape(profile);
+  brandProfileCache=next;
+  if(onboardingSeedData && onboardingSeedData.metadata && typeof onboardingSeedData.metadata==='object'){
+    onboardingSeedData.metadata.brandProfile=cloneJsonSafe(next);
+    try{ localStorage.setItem(ONBOARDING_SEED_KEY, JSON.stringify(onboardingSeedData)); }catch(_e){}
+  }
+  applyBrandProfileToCanvas(next, sourceLabel||'manual update', opts||{appendRun:false});
+  syncProjectState();
+  renderAll();
+}
+function latestRunIndex(nodeId){
+  const node=gn(nodeId);
+  if(!node || !Array.isArray(node.runs) || !node.runs.length) return -1;
+  return 0;
+}
+function openLatestRunPreview(nodeId){
+  const idx=latestRunIndex(nodeId);
+  if(idx<0){
+    showToast('brand','No run available yet');
+    return;
+  }
+  openRunPreview(nodeId,idx);
+}
+function saveBrandKitEdits(event){
+  event&&event.stopPropagation&&event.stopPropagation();
+  const next=ensureBrandProfileShape(brandProfileCache||{});
+  next.companyName=String((document.getElementById('bk-company')||{}).value||next.companyName||'').trim();
+  next.category=String((document.getElementById('bk-category')||{}).value||next.category||'').trim();
+  next.targetAudience=String((document.getElementById('bk-audience')||{}).value||next.targetAudience||'').trim();
+  next.productsCatalog=textareaToList((document.getElementById('bk-products')||{}).value);
+  next.analysisJson.brandKit.valueProps=textareaToList((document.getElementById('bk-props')||{}).value);
+  next.analysisJson.brandKit.colorPalette=textareaToList((document.getElementById('bk-colors')||{}).value);
+  next.analysisJson.brandKit.visualSignals=textareaToList((document.getElementById('bk-visuals')||{}).value);
+  persistBrandProfileLocal(next,'manual brand kit edit',{appendRun:false});
+  showToast('brand','Brand kit updated locally');
+}
+function saveBrandGuidelinesEdits(event){
+  event&&event.stopPropagation&&event.stopPropagation();
+  const next=ensureBrandProfileShape(brandProfileCache||{});
+  next.analysisJson.brandGuidelines.positioningSummary=String((document.getElementById('bg-summary')||{}).value||'').trim();
+  next.analysisJson.brandGuidelines.toneTraits=textareaToList((document.getElementById('bg-tone')||{}).value);
+  next.analysisJson.brandGuidelines.messagingPillars=textareaToList((document.getElementById('bg-pillars')||{}).value);
+  next.analysisJson.brandGuidelines.proofPoints=textareaToList((document.getElementById('bg-proof')||{}).value);
+  next.analysisJson.brandGuidelines.ctaStyles=textareaToList((document.getElementById('bg-cta')||{}).value);
+  persistBrandProfileLocal(next,'manual guidelines edit',{appendRun:false});
+  showToast('brand','Brand guidelines updated locally');
+}
 function mockReddit(n,r){
-  const liveFindings=Array.isArray(r&&r.data&&r.data.findings)?r.data.findings:[];
-  const livePosts=liveFindings.slice(0,6).map(f=>({
-    sub:`r/${f.subreddit||'all'}`,
-    title:String(f.sourceTitle||f.text||'Reddit finding').slice(0,120),
-    votes:String(f.score||0),
-    comments:'—',
-    tag:(f.type==='comment'?'Comment':'Post'),
-    tagColor:f.type==='comment'?'#0DD3BB':'#FF4500',
-    url:String(f.sourceUrl||'#')
-  }));
-  const posts=livePosts.length?livePosts:[
-    {sub:'r/SkincareAddiction',title:'"Vaseline as a moisturiser — genuinely underrated or just hype?"',votes:'2.4k',comments:'312',tag:'Discussion',tagColor:'#FF4500',url:'https://reddit.com'},
-    {sub:'r/beauty',title:'"Why does Vaseline feel so different from CeraVe? Skin feels amazing"',votes:'1.1k',comments:'189',tag:'Review',tagColor:'#0DD3BB',url:'https://reddit.com'},
-    {sub:'r/MakeupAddiction',title:'"The slugging trend is actually just… Vaseline. We been knew."',votes:'876',comments:'94',tag:'Trend',tagColor:'#FF585B',url:'https://reddit.com'},
-    {sub:'r/SkincareAddiction',title:'"Gen Z discovering Vaseline: authenticity over aesthetics wins"',votes:'654',comments:'71',tag:'Insight',tagColor:'#46D160',url:'https://reddit.com'},
-    {sub:'r/drugstorebeauty',title:'"$3 vs $30 — Vaseline still beats everything in my routine"',votes:'543',comments:'58',tag:'Comparison',tagColor:'#FFB000',url:'https://reddit.com'},
-  ];
-  return `<div style="padding-bottom:8px">
-    <div class="mk-rt-head"><span class="mk-rt-logo">reddit</span><span style="font:9px sans-serif;color:rgba(255,255,255,.6)">· ${r.summary}</span></div>
-    <div class="mk-rt-sort">
-      <span class="mk-rt-chip on">Hot</span><span class="mk-rt-chip">New</span><span class="mk-rt-chip">Top</span><span class="mk-rt-chip">Rising</span>
+  const runId=String(r&&r.runId||'');
+  const shortlistKey=`${n.id}::${runId||'latest'}`;
+  if(!redditInsightShortlists[shortlistKey]) redditInsightShortlists[shortlistKey]=new Set();
+  const liveInsights=Array.isArray(r&&r.data&&r.data.insights)?r.data.insights:[];
+  const libraryInsights=Array.isArray(r&&r.data&&r.data.insightsLibrary)
+    ? r.data.insightsLibrary
+    : (Array.isArray(n&&n.agentData&&n.agentData.lastResult&&n.agentData.lastResult.insightsLibrary)
+        ? n.agentData.lastResult.insightsLibrary
+        : []);
+  const liveInsightIds=new Set(liveInsights.map((ins,idx)=>insightStableId(ins,idx)));
+  const archivedInsights=libraryInsights.filter((ins,idx)=>!liveInsightIds.has(insightStableId(ins,idx))).slice(0,12);
+  const selectionId=`ri-selection-${String(n.id||'').replace(/[^a-zA-Z0-9_-]/g,'_')}-${String(runId||'latest').replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+  const selectedCount=redditInsightShortlists[shortlistKey].size;
+  const insightsMarkup = liveInsights.length
+    ? liveInsights.slice(0,16).map((ins,idx)=>{
+        const refs=Array.isArray(ins.references)&&ins.references.length?ins.references:[ins.reference||{}];
+        const ref=refs[0]||{};
+        const iid=insightStableId(ins,idx);
+        const checked=redditInsightShortlists[shortlistKey].has(iid) ? 'checked' : '';
+        const votes=ref.score||ref.votes||ins.score||'--';
+        const comments=ref.comments||ref.commentCount||'--';
+        const mentionCount=Number(ins.mentionCount||0);
+        const uniqueUserCount=Number(ins.uniqueUserCount||0);
+        const refPreview=refs.slice(1,3).map((item)=>{
+          const thread=item||{};
+          return `<div class="mk-ri-thread" style="margin-top:6px">
+            <div class="mk-ri-thread-sub">${esc(thread.subreddit?`r/${thread.subreddit}`:'r/all')}</div>
+            <div class="mk-ri-thread-title">${esc(String(thread.title||'Reddit thread')).slice(0,180)}</div>
+            <a class="mk-ri-thread-link" href="${esc(thread.url||'#')}" target="_blank" rel="noopener">Open proof thread ↗</a>
+          </div>`;
+        }).join('');
+        return `<article class="mk-ri-card">
+          <div class="mk-ri-top">
+            <label class="mk-ri-check">
+              <input type="checkbox" ${checked}
+              onchange="toggleRedditInsightShortlist('${esc(n.id)}','${esc(runId)}','${esc(iid)}',this.checked)">
+              <span class="mk-ri-check-box">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7"></path></svg>
+              </span>
+            </label>
+            <div class="mk-ri-copy">
+              <div class="mk-ri-kicker">Insight ${String(idx+1).padStart(2,'0')}</div>
+              <div class="mk-ri-text">${esc(String(ins.insight||ins.text||'Insight')).slice(0,320)}</div>
+            </div>
+          </div>
+          <div class="mk-ri-ref">
+            <div class="mk-ri-ref-label">Reference thread</div>
+            <div class="mk-ri-thread">
+              <div class="mk-ri-thread-sub">${esc(ref.subreddit?`r/${ref.subreddit}`:'r/all')}</div>
+              <div class="mk-ri-thread-title">${esc(String(ref.title||'Reddit thread')).slice(0,180)}</div>
+              <a class="mk-ri-thread-link" href="${esc(ref.url||'#')}" target="_blank" rel="noopener">Open proof thread ↗</a>
+              <div class="mk-ri-thread-meta">
+                <span>▲ ${esc(String(votes))}</span>
+                <span>💬 ${esc(String(comments))}</span>
+                <span>${esc(String(mentionCount||0))} mentions</span>
+                <span>${esc(String(uniqueUserCount||0))} users</span>
+                <span>${esc(String(refs.length||1))} threads</span>
+                <span>Run ${esc(String(r.date||''))}</span>
+              </div>
+            </div>
+            ${refs.length>1?`<div class="mk-ri-ref-label" style="margin-top:4px">More references</div>${refPreview}`:''}
+          </div>
+        </article>`;
+      }).join('')
+    : `<div class="mk-ri-card"><div class="mk-ri-text">No new insights in this run.</div></div>`;
+  const archivedMarkup=archivedInsights.length
+    ? `<details class="mk-ri-archive">
+        <summary>Older insights (${archivedInsights.length})</summary>
+        <div class="mk-ri-archive-body">
+          ${archivedInsights.map((ins,idx)=>{
+            const refs=Array.isArray(ins.references)&&ins.references.length?ins.references:[ins.reference||{}];
+            const ref=refs[0]||{};
+            return `<div class="mk-ri-card">
+              <div class="mk-ri-kicker">Older insight ${String(idx+1).padStart(2,'0')}</div>
+              <div class="mk-ri-text">${esc(String(ins.insight||ins.text||'Insight')).slice(0,240)}</div>
+              <div class="mk-ri-ref">
+                <div class="mk-ri-ref-label">Primary reference</div>
+                <div class="mk-ri-thread">
+                  <div class="mk-ri-thread-sub">${esc(ref.subreddit?`r/${ref.subreddit}`:'r/all')}</div>
+                  <div class="mk-ri-thread-title">${esc(String(ref.title||'Reddit thread')).slice(0,160)}</div>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </details>`
+    : '';
+  return `<div class="mk-ri-wrap">
+    <div class="mk-ri-scroll">
+      <div class="mk-ri-body">${insightsMarkup}${archivedMarkup}</div>
     </div>
-    ${posts.map(p=>`<div class="mk-rt-post">
-      <div class="mk-rt-votes"><span class="mk-rt-arr">▲</span><span class="mk-rt-vn">${p.votes}</span></div>
-      <div class="mk-rt-pc">
-        <div class="mk-rt-sub">${p.sub} · <span class="mk-rt-tag" style="background:${p.tagColor}22;color:${p.tagColor}">${p.tag}</span></div>
-        <div class="mk-rt-ptitle">${p.title}</div>
-        <div class="mk-rt-meta"><a href="${esc(p.url||'#')}" target="_blank" rel="noopener" style="color:#9BB0D1;text-decoration:none">View thread ↗</a></div>
-        <div class="mk-rt-meta"><span>💬 ${p.comments}</span><span>↗ Share</span><span>⚑ Save</span></div>
-      </div>
-    </div>`).join('')}
+    <div class="mk-ri-toolbar">
+      <div class="mk-ri-selection" id="${selectionId}">${selectedCount} insight${selectedCount===1?'':'s'} selected for analysis</div>
+      <button class="mk-ri-cta" onclick="sendShortlistedRedditInsights('${esc(n.id)}','${esc(runId)}')">Run Persona Need and emotion analysis</button>
+    </div>
   </div>`;
 }
 function mockGAds(n,r){
@@ -2031,6 +2642,101 @@ function mockPew(n,r){
     </div>
   </div>`;
 }
+function mockBrandKit(n,r){
+  const profile=(r&&r.data&&r.data.profile) || brandProfileCache || {};
+  const brandKit=profileSection(profile,'brandKit');
+  const siteMeta=profile&&profile.analysisJson&&profile.analysisJson.siteMeta&&typeof profile.analysisJson.siteMeta==='object'
+    ? profile.analysisJson.siteMeta
+    : {};
+  const assets=Array.isArray(brandKit.assetCandidates)?brandKit.assetCandidates:[];
+  const colors=profileList(brandKit.colorPalette,4);
+  const props=profileList(brandKit.valueProps,5);
+  const visuals=profileList(brandKit.visualSignals,4);
+  const products=profileList(profile.productsCatalog,5);
+  return `<div style="padding:12px 14px 14px">
+    <div class="mk-gen-bar"><span class="mk-gen-brand">Brand Kit</span></div>
+    <div style="padding:10px 2px 8px;font:700 12px var(--display);color:#fff">${esc(profile.companyName||n.name)}</div>
+    <div style="font:9px/1.45 sans-serif;color:var(--ink-300);margin-bottom:10px">${esc(profile.brandUrl||r.url||'')}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+      <div style="font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#7DD3FC">Review + edit surface</div>
+      <button class="out-open-btn" style="padding:7px 10px" onclick="saveBrandKitEdits(event)">Save changes</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;background:rgba(255,255,255,.03)">
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:4px">Category</div>
+        <input id="bk-category" value="${esc(profile.category||'')}" placeholder="Category" style="width:100%;margin:0;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#0d1320;color:#fff;padding:8px 9px;font:9px sans-serif">
+      </div>
+      <div style="border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;background:rgba(255,255,255,.03)">
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:4px">Audience</div>
+        <input id="bk-audience" value="${esc(profile.targetAudience||'')}" placeholder="Target audience" style="width:100%;margin:0;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#0d1320;color:#fff;padding:8px 9px;font:9px sans-serif">
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Brand name</div>
+      <input id="bk-company" value="${esc(profile.companyName||'')}" placeholder="Brand name" style="width:100%;margin:0;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#0d1320;color:#fff;padding:8px 9px;font:9px sans-serif">
+    </div>
+    ${colors.length?`<div style="margin-bottom:10px"><div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Detected colors</div><div style="display:flex;gap:6px;flex-wrap:wrap">${colors.map(c=>`<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:9px sans-serif;color:#D5DBE7"><span style="width:10px;height:10px;border-radius:50%;background:${esc(c)};border:1px solid rgba(255,255,255,.15)"></span>${esc(c)}</span>`).join('')}</div></div>`:''}
+    <div style="margin-bottom:10px">
+      <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Value props</div>
+      <textarea id="bk-props" placeholder="One value prop per line" style="width:100%;min-height:82px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(props))}</textarea>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Product catalog</div>
+      <textarea id="bk-products" placeholder="One product or collection per line" style="width:100%;min-height:74px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(products))}</textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Color palette</div>
+        <textarea id="bk-colors" placeholder="#hex or color name per line" style="width:100%;min-height:74px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(colors))}</textarea>
+      </div>
+      <div>
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Visual signals</div>
+        <textarea id="bk-visuals" placeholder="Visual cues per line" style="width:100%;min-height:74px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(visuals))}</textarea>
+      </div>
+    </div>
+    ${assets.length?`<div style="margin-bottom:10px"><div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Asset candidates</div>${assets.slice(0,5).map(asset=>`<div style="display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:7px 8px;background:rgba(255,255,255,.02);margin-bottom:6px"><div style="font:700 8px var(--mono);color:#7DD3FC;text-transform:uppercase">${esc(asset.type||'asset')}</div><div><div style="font:9px sans-serif;color:#fff">${esc(asset.label||'Brand asset')}</div><div style="font:8px/1.35 sans-serif;color:var(--ink-400);word-break:break-all">${esc(asset.url||'')}</div></div></div>`).join('')}</div>`:''}
+    ${(siteMeta.description||siteMeta.title)?`<div style="border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:8px"><div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Website copy snapshot</div><div style="font:9px/1.45 sans-serif;color:#D5DBE7">${esc(siteMeta.description||siteMeta.title||'')}</div></div>`:''}
+  </div>`;
+}
+function mockBrandGuidelines(n,r){
+  const profile=(r&&r.data&&r.data.profile) || brandProfileCache || {};
+  const guidelines=profileSection(profile,'brandGuidelines');
+  const toneTraits=profileList(guidelines.toneTraits,5);
+  const pillars=profileList(guidelines.messagingPillars,5);
+  const proofPoints=profileList(guidelines.proofPoints,5);
+  const ctaStyles=profileList(guidelines.ctaStyles,4);
+  const summary=String(guidelines.positioningSummary||'').trim();
+  return `<div style="padding:12px 14px 14px">
+    <div class="mk-gen-bar"><span class="mk-gen-brand">Brand Guidelines</span></div>
+    <div style="padding:10px 2px 8px;font:700 12px var(--display);color:#fff">${esc(profile.companyName||n.name)} messaging system</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+      <div style="font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#7DD3FC">Review + edit surface</div>
+      <button class="out-open-btn" style="padding:7px 10px" onclick="saveBrandGuidelinesEdits(event)">Save changes</button>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Positioning summary</div>
+      <textarea id="bg-summary" placeholder="Short positioning summary" style="width:100%;min-height:80px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(summary)}</textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Tone traits</div>
+        <textarea id="bg-tone" placeholder="One trait per line" style="width:100%;min-height:78px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(toneTraits))}</textarea>
+      </div>
+      <div>
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">CTA patterns</div>
+        <textarea id="bg-cta" placeholder="One CTA style per line" style="width:100%;min-height:78px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(ctaStyles))}</textarea>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Messaging pillars</div>
+      <textarea id="bg-pillars" placeholder="One pillar per line" style="width:100%;min-height:88px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(pillars))}</textarea>
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="font:700 9px sans-serif;color:#fff;margin-bottom:5px">Proof cues</div>
+      <textarea id="bg-proof" placeholder="One proof cue per line" style="width:100%;min-height:80px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0d1320;color:#D5DBE7;padding:9px;font:9px/1.45 sans-serif;resize:vertical">${esc(listToTextarea(proofPoints))}</textarea>
+    </div>
+  </div>`;
+}
 function mockGeneric(n,r){
   const rows=(n.runs||[]).map(row=>`<div class="mk-gen-row"><span class="mk-gen-lbl">${esc(row.date)}</span><span class="mk-gen-val">${esc(row.count)}</span></div>`);
   return `<div>
@@ -2048,17 +2754,31 @@ function mockPersona(n,r){
       <div style="font:700 10px sans-serif;color:#fff">${idx+1}. ${esc(it.persona||'Persona')}</div>
       <div style="font:9px/1.45 sans-serif;color:#D5DBE7;margin-top:4px"><strong>Need:</strong> ${esc(it.need||'')}</div>
       <div style="font:9px/1.45 sans-serif;color:#D5DBE7"><strong>Emotion:</strong> ${esc(it.emotion||'')}</div>
-    </div>`).join(''):`<div style="font:9px sans-serif;color:var(--ink-500)">No PNE rows found.</div>`}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font:8px sans-serif;color:var(--ink-400)">
+        <span>${esc(String(it.mentionCount||0))} mentions</span>
+        <span>${esc(String(it.uniqueUserCount||0))} users</span>
+        <span>${Math.round(Number(it.confidence||0)*100)||0}% confidence</span>
+      </div>
+      ${(Array.isArray(it.evidence)&&it.evidence.length)?`<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.06);padding-top:6px">${it.evidence.slice(0,2).map(ev=>`<div style="font:8.5px/1.45 sans-serif;color:var(--ink-300);margin-bottom:4px">“${esc(ev)}”</div>`).join('')}</div>`:''}
+    </div>`).join(''):`<div style="font:9px sans-serif;color:var(--ink-500)">No persona rows found.</div>`}
   </div>`;
 }
 function mockPne(n,r){
-  const combos=Array.isArray(r&&r.data&&r.data.combos)?r.data.combos:[];
+  const combos=Array.isArray(r&&r.data&&r.data.pneCombos)?r.data.pneCombos:[];
   return `<div style="padding:10px 12px 12px">
     <div class="mk-gen-bar"><span class="mk-gen-brand">PNE Framework Matrix</span></div>
     <div style="padding:8px 2px 10px;font:9px sans-serif;color:var(--ink-500)">${esc(r.summary||'No summary')}</div>
     <div style="display:grid;gap:7px">
       ${combos.length?combos.slice(0,12).map((it,idx)=>`<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 9px;background:rgba(255,255,255,.02)">
-        <div style="font:9.5px/1.35 sans-serif;color:#fff">${idx+1}. ${esc(it.persona||'Persona')} → ${esc(it.need||'Need')} → ${esc(it.emotion||'Emotion')}</div>
+        <div>
+          <div style="font:9.5px/1.35 sans-serif;color:#fff">${idx+1}. ${esc(it.persona||'Persona')} → ${esc(it.need||'Need')} → ${esc(it.emotion||'Emotion')}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;font:8px sans-serif;color:var(--ink-400)">
+            <span>${esc(String(it.evidenceCount||0))} evidence</span>
+            <span>${esc(String(it.mentionCount||0))} mentions</span>
+            <span>${esc(String(it.uniqueUserCount||0))} users</span>
+            ${it.angle?`<span>${esc(it.angle)}</span>`:''}
+          </div>
+        </div>
         <div style="font:700 9px sans-serif;color:#8FEA96">${Math.round(Number(it.confidence||0)*100)||0}%</div>
       </div>`).join(''):`<div style="font:9px sans-serif;color:var(--ink-500)">No framework rows found.</div>`}
     </div>
@@ -2469,17 +3189,15 @@ function isNearNodeEdge(n,wp,tol=16,role='in'){
   return edges.some(pt=>Math.hypot(wp.x-pt.x,wp.y-pt.y)<=tol);
 }
 const NODE_PICK_INPUT=[
-  {id:'comfyui',name:'Comfy UI Node',desc:'Generation sub-canvas',type:'spoke'},
-  {id:'elevenlabs',name:'ElevenLabs Voice Node',desc:'Voiceover generation',type:'spoke'},
-  {id:'elevenlabs_music',name:'ElevenLabs Music Node',desc:'Video-to-music generation',type:'spoke'},
   {id:'reddit',name:'Reddit Input',desc:'Community source',type:'spoke'},
-  {id:'persona_needs_emotions',name:'Persona + Needs + Emotions',desc:'PNE inference agent',type:'spoke'},
-  {id:'pne_framework',name:'PNE Framework',desc:'Persona/Need/Emotion matrix',type:'spoke'},
-  {id:'ga4',name:'GA4 Input',desc:'Analytics feed',type:'spoke'},
-  {id:'csv',name:'CSV Upload',desc:'Manual dataset',type:'spoke'},
+  {id:'persona_needs_emotions',name:'Persona + Needs + Emotions',desc:'Distill selected customer insights',type:'spoke'},
+  {id:'pne_framework',name:'PNE Framework',desc:'Map persona / need / emotion combinations',type:'spoke'},
+  {id:'brand_kit',name:'Brand Kit',desc:'Website brand extraction',type:'spoke'},
+  {id:'brand_guidelines',name:'Brand Guidelines',desc:'Voice and positioning',type:'spoke'},
+  {id:'athleisure_templates',name:'Athleisure Templates',desc:'Category starter examples',type:'spoke'},
+  {id:'comfyui',name:'Comfy UI Node',desc:'Generation sub-canvas',type:'spoke'},
 ];
 const NODE_PICK_OUTPUT=[
-  {id:'synth',name:'Brief Synthesizer',desc:'Output strategy brief',type:'output',av:'◉',role:'Strategic Writer'},
   {id:'assetgen',name:'Asset Generator',desc:'Comfy mini-canvas output',type:'output',av:'✦',role:'Creative Producer'},
 ];
 function openNodePicker(fromId,atX,atY){
@@ -2567,6 +3285,14 @@ function finishLinkDraw(e){
 function startPan(e){panStart={x:e.clientX,y:e.clientY,tx:tf.x,ty:tf.y};vpEl().style.cursor='grabbing';}
 function onPan(e){if(!panStart)return;tf.x=panStart.tx+(e.clientX-panStart.x);tf.y=panStart.ty+(e.clientY-panStart.y);applyTf();}
 function onWheel(e){
+  const drawer=e.target&&e.target.closest ? e.target.closest('#run-drawer') : null;
+  if(drawer){
+    const scrollHost=e.target.closest('.mk-ri-scroll,.rd-body');
+    if(scrollHost){
+      e.stopPropagation();
+      return;
+    }
+  }
   e.preventDefault();
   // Ctrl/Cmd + scroll (or pinch emitting ctrlKey) → zoom; otherwise two-finger swipe pans.
   const zoomGesture = e.ctrlKey || e.metaKey;
@@ -2747,30 +3473,15 @@ function brainSVG(nodeId,color,icon,iconBlend){
 
 // ── SOURCE PICKER ─────────────────────────────────────────────
 const SOURCE_TYPES=[
-  {id:'reddit',   name:'Reddit',         ico:'Rd', img:'https://www.google.com/s2/favicons?domain=reddit.com&sz=64',             color:'#FF4500', desc:'Community threads'},
-  {id:'persona_needs_emotions',name:'Persona + Needs + Emotions',ico:'Pn', img:null,                                              color:'#A855F7', desc:'Persona mapping agent'},
-  {id:'pne_framework',name:'PNE Framework',ico:'Pf', img:null,                                                                     color:'#7C3AED', desc:'Persona/Need/Emotion matrix'},
-  {id:'tiktok',   name:'TikTok',         ico:'Tk', img:'https://www.google.com/s2/favicons?domain=tiktok.com&sz=64',             color:'#FF0050', desc:'Video performance'},
-  {id:'instagram',name:'Instagram',      ico:'In', img:'https://www.google.com/s2/favicons?domain=instagram.com&sz=64',          color:'#C13584', desc:'Engagement data'},
-  {id:'youtube',  name:'YouTube',        ico:'YT', img:'https://www.google.com/s2/favicons?domain=youtube.com&sz=64',            color:'#FF0000', desc:'Video analytics'},
-  {id:'googleads',name:'Google Ads',     ico:'GA', img:'https://www.google.com/s2/favicons?domain=ads.google.com&sz=64',         color:'#4285F4', desc:'Search campaigns'},
-  {id:'gsc',      name:'Search Console', ico:'SC', img:'https://www.google.com/s2/favicons?domain=search.google.com&sz=64',      color:'#34A853', desc:'Organic SEO'},
-  {id:'shopify',  name:'Shopify',        ico:'Sh', img:'https://www.google.com/s2/favicons?domain=shopify.com&sz=64',            color:'#96BF48', desc:'Store analytics'},
-  {id:'klaviyo',  name:'Klaviyo',        ico:'Kv', img:'https://www.google.com/s2/favicons?domain=klaviyo.com&sz=64',            color:'#6C3AC7', desc:'Email metrics'},
-  {id:'amazon',   name:'Amazon Reviews', ico:'Az', img:'https://www.google.com/s2/favicons?domain=amazon.com&sz=64',             color:'#FF9900', desc:'Customer reviews'},
-  {id:'pew',      name:'Pew Research',   ico:'Pw', img:null,                                                                     color:'#1A52B8', desc:'Psychology research'},
-  {id:'meta',     name:'Meta Ads',       ico:'Mb', img:'https://www.google.com/s2/favicons?domain=meta.com&sz=64',               color:'#1877F2', desc:'Ad library data'},
-  {id:'notion',   name:'Notion',         ico:'No', img:'https://www.google.com/s2/favicons?domain=notion.so&sz=64',              color:'#9B9B9B', desc:'Docs & wikis'},
-  {id:'ga4',      name:'GA4',            ico:'G4', img:'https://www.google.com/s2/favicons?domain=analytics.google.com&sz=64',   color:'#E37400', desc:'Web analytics'},
-  {id:'pinterest',name:'Pinterest',      ico:'Pi', img:'https://www.google.com/s2/favicons?domain=pinterest.com&sz=64',          color:'#E60023', desc:'Visual trends'},
-  {id:'semrush',  name:'SEMrush',        ico:'Se', img:'https://www.google.com/s2/favicons?domain=semrush.com&sz=64',            color:'#FF642D', desc:'Keyword data'},
-  {id:'survey',   name:'Survey',         ico:'Sv', img:null,                                                                     color:'#8B5CF6', desc:'Primary research'},
-  {id:'csv',      name:'CSV Upload',     ico:'Cs', img:null,                                                                     color:'#10B981', desc:'Custom dataset'},
-  {id:'comfyui',  name:'Comfy UI Node',  ico:'Cf', img:null,                                                                     color:'#EC4899', desc:'Generation sub-canvas'},
-  {id:'elevenlabs',name:'ElevenLabs Voice Node',ico:'11',img:null,                                                               color:'#8B5CF6', desc:'Voiceover generation'},
-  {id:'elevenlabs_music',name:'ElevenLabs Music Node',ico:'Mu',img:null,                                                           color:'#A855F7', desc:'Video-to-music generation'},
-  {id:'ga4perf',  name:'Performance KPI',ico:'Pf', img:'https://www.google.com/s2/favicons?domain=analytics.google.com&sz=64',   color:'#EC4899', desc:'Live KPI tracking'},
-  {id:'api',      name:'Custom API',     ico:'AP', img:null,                                                                     color:'#6B7280', desc:'Any data source'},
+  {id:'reddit',               name:'Reddit',               ico:'Rd', img:'https://www.google.com/s2/favicons?domain=reddit.com&sz=64', color:'#FF4500', desc:'Community painpoint scan'},
+  {id:'persona_needs_emotions',name:'Persona Need Emotion',ico:'Pn', img:null,                                                         color:'#8B5CF6', desc:'Persona, need, emotion mapping'},
+  {id:'pne_framework',        name:'PNE Framework',        ico:'Pf', img:null,                                                         color:'#A855F7', desc:'Customer strategy matrix'},
+  {id:'brand_kit',            name:'Brand Kit',            ico:'Bk', img:null,                                                         color:'#0D9488', desc:'Website assets + positioning'},
+  {id:'brand_guidelines',     name:'Brand Guidelines',     ico:'Bg', img:null,                                                         color:'#0D9488', desc:'Voice and message rules'},
+  {id:'athleisure_templates', name:'Athleisure Templates', ico:'At', img:null,                                                         color:'#F59E0B', desc:'Category examples + starter prompts'},
+  {id:'comfyui',              name:'Comfy UI Node',        ico:'Cf', img:null,                                                         color:'#EC4899', desc:'Preset generation workflows'},
+  {id:'elevenlabs',           name:'ElevenLabs Voice',     ico:'El', img:null,                                                         color:'#22C55E', desc:'Voiceover generation from storyboard script'},
+  {id:'elevenlabs_music',     name:'ElevenLabs Music',     ico:'Em', img:null,                                                         color:'#14B8A6', desc:'Music generation from storyboard pacing'},
 ];
 const EXTERNAL_DEP_REQUIREMENTS={
   reddit:{integrationId:'apify',providerName:'Apify',authType:'api_key',keyField:'APIFY_API_KEY'},
@@ -2795,10 +3506,10 @@ const EXTERNAL_DEP_REQUIREMENTS={
 };
 
 const BRAIN_NODE_MAP={
-  customer:['reddit','persona_needs_emotions','pne_framework','amazon','pew','survey','csv','api','comfyui','elevenlabs','elevenlabs_music'],
-  brand:['notion','meta','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music'],
-  presentation:['instagram','youtube','pinterest','meta','csv','comfyui','elevenlabs','elevenlabs_music'],
-  performance:['reddit','persona_needs_emotions','pne_framework','ga4perf','googleads','ga4','shopify','api','csv','comfyui','elevenlabs','elevenlabs_music']
+  customer:['reddit','persona_needs_emotions','pne_framework'],
+  brand:['brand_kit','brand_guidelines'],
+  presentation:['athleisure_templates','comfyui','elevenlabs','elevenlabs_music'],
+  performance:[]
 };
 const LEFT_MENU_ITEMS=[
   {name:'Openflow Plans',sub:'Credit plans and Openflow-specific features',action:'open-plans'},
@@ -2828,6 +3539,71 @@ let comfyTemplatesLoaded=false;
 function isHostedRuntime(){
   return (desktopSettings.runtime&&desktopSettings.runtime.backendMode)==='hosted';
 }
+function getWebAuthSession(){
+  try{
+    const raw=localStorage.getItem('openflow.web.auth.v2');
+    if(!raw) return null;
+    const parsed=JSON.parse(raw);
+    return parsed&&typeof parsed==='object' ? parsed : null;
+  }catch(_e){
+    return null;
+  }
+}
+function getHostedSubscriptionUserKey(){
+  const session=getWebAuthSession();
+  const user=session&&session.user&&typeof session.user==='object' ? session.user : null;
+  const userId=String(user&&user.id||'').trim();
+  const email=String(user&&user.email||'').trim().toLowerCase();
+  return userId || email || '';
+}
+function readHostedSubscriptionMap(){
+  try{
+    const raw=localStorage.getItem(HOSTED_SUBSCRIPTION_STORAGE_KEY);
+    if(!raw) return {};
+    const parsed=JSON.parse(raw);
+    return parsed&&typeof parsed==='object' ? parsed : {};
+  }catch(_e){
+    return {};
+  }
+}
+function writeHostedSubscriptionMap(map){
+  try{
+    localStorage.setItem(HOSTED_SUBSCRIPTION_STORAGE_KEY,JSON.stringify(map&&typeof map==='object'?map:{}));
+  }catch(_e){}
+}
+function getHostedSubscriptionState(){
+  const key=getHostedSubscriptionUserKey();
+  if(!key) return null;
+  const map=readHostedSubscriptionMap();
+  const state=map[key];
+  return state&&typeof state==='object' ? state : null;
+}
+function setHostedSubscriptionState(nextState){
+  const key=getHostedSubscriptionUserKey();
+  if(!key) return;
+  const map=readHostedSubscriptionMap();
+  map[key]={
+    active:Boolean(nextState&&nextState.active),
+    plan:String(nextState&&nextState.plan||''),
+    cycle:String(nextState&&nextState.cycle||''),
+    updatedAt:new Date().toISOString()
+  };
+  writeHostedSubscriptionMap(map);
+}
+function hasHostedPaidSubscription(){
+  if(!isHostedRuntime()) return true;
+  const session=getWebAuthSession();
+  const token=String(session&&session.token||'').trim();
+  if(!token) return true;
+  const state=getHostedSubscriptionState();
+  return Boolean(state&&state.active);
+}
+function ensureHostedSubscriptionForRun(runLabel){
+  if(hasHostedPaidSubscription()) return true;
+  openPlansModal();
+  showToast('performance',`${runLabel||'Hosted run'} requires a subscription after signup`);
+  return false;
+}
 function isByokLocalMode(){
   return !isHostedRuntime() && (desktopSettings.entitlement&&desktopSettings.entitlement.mode)==='byok';
 }
@@ -2839,8 +3615,15 @@ function sourceIdForNode(n){
     const parts=id.split('_');
     return parts[1]||'';
   }
-  const hubMatch=id.match(/^(customer|brand|presentation|performance)_([^_]+)_/);
-  if(hubMatch) return hubMatch[2]||'';
+  const hubPrefix=['customer_','brand_','presentation_','performance_'].find(prefix=>id.startsWith(prefix));
+  if(hubPrefix){
+    const rest=id.slice(hubPrefix.length);
+    const matched=SOURCE_TYPES
+      .slice()
+      .sort((a,b)=>b.id.length-a.id.length)
+      .find(src=>rest===src.id || rest.startsWith(src.id+'_'));
+    if(matched) return matched.id;
+  }
   const byName=(n.srcName||n.name||'').toLowerCase().replace(/\s+/g,'');
   const src=SOURCE_TYPES.find(s=>s.name.toLowerCase().replace(/\s+/g,'')===byName);
   return src?src.id:'';
@@ -2899,9 +3682,22 @@ async function chargeCredits(units){
   }
 }
 const AGENT_SOURCE_IDS=new Set(['reddit','persona_needs_emotions','pne_framework']);
-const REDDIT_DEFAULT_FREQUENCY_HOURS=6;
+const REDDIT_DEFAULT_FREQUENCY_HOURS=24;
 let brandProfileCache=null;
+let customerBrainStateCache=null;
+let presentationBriefStateCache=null;
+let presentationStoryboardStateCache=null;
 let redditAutoRunTimer=null;
+const redditInsightShortlists={};
+const STABLE_SOURCE_NODE_IDS=new Set([
+  'reddit',
+  'persona_needs_emotions',
+  'pne_framework',
+  'brand_kit',
+  'brand_guidelines',
+  'athleisure_templates',
+  'comfyui'
+]);
 function isAgentNode(n){
   return AGENT_SOURCE_IDS.has(sourceIdForNode(n));
 }
@@ -2919,6 +3715,16 @@ function findHubSourceNode(hubId, sourceId){
   if(!candidates.length) return null;
   candidates.sort((a,b)=>(b.lastRunAt||0)-(a.lastRunAt||0));
   return candidates[0];
+}
+function sourceNodeIdForHub(hubId,srcId){
+  if(STABLE_SOURCE_NODE_IDS.has(srcId)) return `${hubId}_${srcId}`;
+  return `${hubId}_${srcId}_${Date.now()}`;
+}
+function existingSourceNodeForHub(hubId,srcId){
+  return nodes.find(node=>nodeHubId(node.id)===hubId && sourceIdForNode(node)===srcId)
+    || nodes.find(node=>String(node.id||'')===`${hubId}_${srcId}`)
+    || nodes.find(node=>String(node.id||'').startsWith(`${hubId}_${srcId}_`))
+    || null;
 }
 function apiAuthHeaders(){
   const token=((desktopSettings.runtime&&desktopSettings.runtime.hostedAuthToken)||'').trim();
@@ -2952,6 +3758,7 @@ async function ensureBrandProfile(){
     const existing=await existingRes.json();
     if(existing&&existing.brandUrl){
       brandProfileCache=existing;
+      applyBrandProfileToCanvas(brandProfileCache,'saved profile');
       return brandProfileCache;
     }
   }catch{}
@@ -2965,10 +3772,331 @@ async function ensureBrandProfile(){
     });
     const profile=await res.json();
     brandProfileCache=profile;
+    applyBrandProfileToCanvas(brandProfileCache,'website analysis');
     return brandProfileCache;
   }catch{
     return null;
   }
+}
+function applyCustomerBrainState(state,sourceLabel){
+  customerBrainStateCache=state&&typeof state==='object' ? state : null;
+  const selectedInsights=Array.isArray(state&&state.selectedInsights)?state.selectedInsights:[];
+  const personaItems=Array.isArray(state&&state.personaItems)?state.personaItems:[];
+  const pneCombos=Array.isArray(state&&state.pneCombos)?state.pneCombos:[];
+  const customerHub=gn('customer');
+  if(customerHub&&Array.isArray(customerHub.msgs)&&customerHub.msgs.length){
+    const firstPersona=personaItems[0]||{};
+    const firstPne=pneCombos[0]||{};
+    const lines=[
+      '## Customer strategy state',
+      '',
+      `**Selected insights:** ${selectedInsights.length}`,
+      `**Persona rows:** ${personaItems.length}`,
+      `**PNE combos:** ${pneCombos.length}`,
+      firstPersona.persona ? `**Lead persona:** ${firstPersona.persona}` : '',
+      firstPne.persona ? `**Lead PNE:** ${firstPne.persona} -> ${firstPne.need||''} -> ${firstPne.emotion||''}` : '',
+      sourceLabel ? `**Source:** ${sourceLabel}` : ''
+    ].filter(Boolean);
+    customerHub.msgs[0]={r:'a',c:lines.join('\n')};
+    refreshNode('customer');
+  }
+  const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const personaNode=ensureSourceNodeForHub('customer','persona_needs_emotions');
+  if(personaNode&&personaItems.length){
+    personaNode.name='Persona Need Emotion';
+    personaNode.connected=true;
+    personaNode.sync=`${personaItems.length} personas mapped`;
+    personaNode.agentData={type:'persona',lastResult:{items:personaItems}};
+    personaNode.runs=[{
+      date:stamp,
+      summary:`${personaItems.length} personas mapped${sourceLabel?` · ${sourceLabel}`:''}`,
+      count:String(personaItems.length),
+      data:{items:personaItems},
+      url:'#'
+    },...(personaNode.runs||[])].slice(0,12);
+    refreshNode(personaNode.id);
+  }
+  const pneNode=ensureSourceNodeForHub('customer','pne_framework');
+  if(pneNode&&pneCombos.length){
+    pneNode.name='PNE Framework';
+    pneNode.connected=true;
+    pneNode.sync=`${pneCombos.length} PNE combos`;
+    pneNode.agentData={type:'pne',lastResult:{pneCombos}};
+    pneNode.runs=[{
+      date:stamp,
+      summary:`${pneCombos.length} PNE combos${sourceLabel?` · ${sourceLabel}`:''}`,
+      count:String(pneCombos.length),
+      data:{pneCombos},
+      url:'#'
+    },...(pneNode.runs||[])].slice(0,12);
+    refreshNode(pneNode.id);
+  }
+}
+async function loadCustomerBrainState(){
+  const workspaceId=workspaceIdForApi();
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/customer-brain/pne-state`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const state=await res.json();
+    if(state&&(Array.isArray(state.selectedInsights)||Array.isArray(state.personaItems)||Array.isArray(state.pneCombos))){
+      applyCustomerBrainState(state,'saved workspace state');
+      return state;
+    }
+  }catch{}
+  return null;
+}
+function ensureBriefNode(){
+  const existing=gn('synth');
+  if(existing) return existing;
+  const assetNode=gn('assetgen');
+  const presentationHub=gn('presentation');
+  const baseX=assetNode?assetNode.x:(presentationHub?presentationHub.x-220:980);
+  const baseY=assetNode?assetNode.y-240:(presentationHub?presentationHub.y+210:520);
+  nodes.push({
+    id:'synth',type:'brief',
+    x:Math.round(baseX),y:Math.round(baseY),
+    color:'#2563EB',av:'▣',
+    name:'Creative Brief',role:'Strategy Output',
+    status:'idle',notifCount:0,runs:[],briefData:null
+  });
+  ['customer','brand','presentation'].forEach(hubId=>{
+    if(!conns.some(edge=>edge.f===hubId&&edge.t==='synth')){
+      const hub=gn(hubId);
+      conns.push({f:hubId,t:'synth',color:(hub&&hub.color)||'#2563EB',kind:'flow'});
+    }
+  });
+  return gn('synth');
+}
+function ensureStoryboardNode(){
+  const existing=gn('storyboard');
+  if(existing) return existing;
+  const briefNode=ensureBriefNode();
+  const baseX=briefNode?(briefNode.x+530):1510;
+  const baseY=briefNode?briefNode.y:520;
+  nodes.push({
+    id:'storyboard',type:'brief',
+    x:Math.round(baseX),y:Math.round(baseY),
+    color:'#8B5CF6',av:'▤',
+    name:'Storyboard',role:'Scene Plan',
+    status:'idle',notifCount:0,runs:[],storyboardData:null
+  });
+  if(!conns.some(edge=>edge.f==='synth'&&edge.t==='storyboard')){
+    conns.push({f:'synth',t:'storyboard',color:'#8B5CF6',kind:'flow'});
+  }
+  if(!conns.some(edge=>edge.f==='storyboard'&&edge.t==='assetgen')){
+    conns.push({f:'storyboard',t:'assetgen',color:'#E11D48',kind:'flow'});
+  }
+  return gn('storyboard');
+}
+function applyPresentationBriefState(state,sourceLabel){
+  presentationBriefStateCache=state&&typeof state==='object' ? state : null;
+  const briefNode=ensureBriefNode();
+  const briefs=Array.isArray(state&&state.briefs)?state.briefs:[];
+  const latest=state&&state.latestBrief&&typeof state.latestBrief==='object'
+    ? state.latestBrief
+    : (briefs[0]&&typeof briefs[0]==='object'?briefs[0]:null);
+  const presentationHub=gn('presentation');
+  if(presentationHub&&Array.isArray(presentationHub.msgs)&&presentationHub.msgs.length){
+    const lines=[
+      '## Presentation strategy state',
+      '',
+      `**Saved briefs:** ${briefs.length}`,
+      latest&&latest.title?`**Latest brief:** ${latest.title}`:'',
+      latest&&latest.angle?`**Lead angle:** ${latest.angle}`:'',
+      latest&&latest.audience?`**Audience:** ${latest.audience}`:'',
+      sourceLabel?`**Source:** ${sourceLabel}`:''
+    ].filter(Boolean);
+    presentationHub.msgs[0]={r:'a',c:lines.join('\n')};
+    refreshNode('presentation');
+  }
+  if(briefNode){
+    briefNode.status=latest?'ready':'idle';
+    briefNode.connected=Boolean(latest);
+    briefNode.sync=latest&&latest.code?`${latest.code} · ${briefs.length} saved brief${briefs.length===1?'':'s'}`:'waiting for inputs';
+    briefNode.briefData=latest||null;
+    briefNode.runs=briefs.slice(0,8).map(item=>({
+      date:item.createdAt?new Date(item.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Saved',
+      summary:item.angle||item.title||'Creative brief',
+      count:item.code||'BRF',
+      data:item,
+      url:'#'
+    }));
+    refreshNode('synth');
+  }
+}
+async function loadPresentationBriefState(forceToast){
+  const workspaceId=workspaceIdForApi();
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/presentation/brief-state`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const state=await res.json();
+    if(state&&(Array.isArray(state.briefs)||state.latestBrief)){
+      applyPresentationBriefState(state,'saved workspace state');
+      if(forceToast) showToast('synth','Creative brief state refreshed');
+      return state;
+    }
+  }catch(err){
+    if(forceToast) showToast('synth','Unable to refresh creative brief state');
+  }
+  return null;
+}
+function applyPresentationStoryboardState(state,sourceLabel){
+  presentationStoryboardStateCache=state&&typeof state==='object' ? state : null;
+  const storyboardNode=ensureStoryboardNode();
+  const boards=Array.isArray(state&&state.storyboards)?state.storyboards:[];
+  const latest=state&&state.latestStoryboard&&typeof state.latestStoryboard==='object'
+    ? state.latestStoryboard
+    : (boards[0]&&typeof boards[0]==='object'?boards[0]:null);
+  const presentationHub=gn('presentation');
+  if(presentationHub&&Array.isArray(presentationHub.msgs)&&presentationHub.msgs.length){
+    const lines=[
+      '## Presentation execution state',
+      '',
+      `**Saved storyboards:** ${boards.length}`,
+      latest&&latest.title?`**Latest storyboard:** ${latest.title}`:'',
+      latest&&latest.format?`**Format:** ${latest.format}`:'',
+      latest&&latest.totalDurationSec?`**Duration:** ${latest.totalDurationSec}s`:'',
+      sourceLabel?`**Source:** ${sourceLabel}`:''
+    ].filter(Boolean);
+    presentationHub.msgs[0]={r:'a',c:lines.join('\n')};
+    refreshNode('presentation');
+  }
+  if(storyboardNode){
+    storyboardNode.status=latest?'ready':'idle';
+    storyboardNode.connected=Boolean(latest);
+    storyboardNode.sync=latest&&latest.code?`${latest.code} · ${boards.length} saved storyboard${boards.length===1?'':'s'}`:'waiting for brief';
+    storyboardNode.storyboardData=latest||null;
+    storyboardNode.runs=boards.slice(0,8).map(item=>({
+      date:item.createdAt?new Date(item.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Saved',
+      summary:item.format||item.title||'Storyboard',
+      count:item.code||'SB',
+      data:item,
+      url:'#'
+    }));
+    refreshNode('storyboard');
+  }
+}
+async function loadPresentationStoryboardState(forceToast){
+  const workspaceId=workspaceIdForApi();
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/presentation/storyboard-state`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const state=await res.json();
+    if(state&&(Array.isArray(state.storyboards)||state.latestStoryboard)){
+      applyPresentationStoryboardState(state,'saved workspace state');
+      if(forceToast) showToast('storyboard','Storyboard state refreshed');
+      return state;
+    }
+  }catch(err){
+    if(forceToast) showToast('storyboard','Unable to refresh storyboard state');
+  }
+  return null;
+}
+function profileList(value, limit){
+  if(!Array.isArray(value)) return [];
+  return value.map(v=>String(v||'').trim()).filter(Boolean).slice(0,limit||6);
+}
+function profileSection(profile,key){
+  const root=profile&&profile.analysisJson&&typeof profile.analysisJson==='object' ? profile.analysisJson : {};
+  const section=root&&root[key]&&typeof root[key]==='object' ? root[key] : {};
+  return section;
+}
+function cloneJsonSafe(v){
+  try{return JSON.parse(JSON.stringify(v||null));}
+  catch(_e){return v||null;}
+}
+function ensureBrandProfileShape(profile){
+  const next=(profile&&typeof profile==='object')?cloneJsonSafe(profile):{};
+  if(!next || typeof next!=='object') return {analysisJson:{brandKit:{},brandGuidelines:{}}};
+  if(!next.analysisJson || typeof next.analysisJson!=='object') next.analysisJson={};
+  if(!next.analysisJson.brandKit || typeof next.analysisJson.brandKit!=='object') next.analysisJson.brandKit={};
+  if(!next.analysisJson.brandGuidelines || typeof next.analysisJson.brandGuidelines!=='object') next.analysisJson.brandGuidelines={};
+  return next;
+}
+function listToTextarea(value){
+  return Array.isArray(value) ? value.map(v=>String(v||'').trim()).filter(Boolean).join('\n') : '';
+}
+function textareaToList(value){
+  return String(value||'')
+    .split(/\n|,/)
+    .map(v=>String(v||'').trim())
+    .filter(Boolean);
+}
+function setNodeRuns(node, nextRun, appendRun){
+  const existing=Array.isArray(node&&node.runs)?node.runs:[];
+  if(appendRun===false){
+    node.runs=existing.length ? [{...existing[0],...nextRun}, ...existing.slice(1,12)] : [nextRun];
+    return;
+  }
+  node.runs=[nextRun,...existing].slice(0,12);
+}
+function updateBrandHubSummary(profile){
+  const hub=gn('brand');
+  if(!hub||!Array.isArray(hub.msgs)||!hub.msgs.length) return;
+  const brandKit=profileSection(profile,'brandKit');
+  const brandGuidelines=profileSection(profile,'brandGuidelines');
+  const valueProps=profileList(brandKit.valueProps,3);
+  const pillars=profileList(brandGuidelines.messagingPillars,3);
+  const toneTraits=profileList(brandGuidelines.toneTraits,3);
+  const lines=[
+    `## Brand context loaded`,
+    ``,
+    `**${profile.companyName||'Brand'}** · ${profile.category||'Category'}`,
+    ``,
+    `**Audience:** ${profile.targetAudience||'Not set yet'}`,
+    valueProps.length ? `**Value props:** ${valueProps.join(' · ')}` : '',
+    toneTraits.length ? `**Tone:** ${toneTraits.join(' · ')}` : '',
+    pillars.length ? `**Messaging pillars:** ${pillars.join(' · ')}` : ''
+  ].filter(Boolean);
+  hub.msgs[0]={r:'a',c:lines.join('\n')};
+}
+function applyBrandProfileToCanvas(profile, sourceLabel, opts){
+  if(!profile||!profile.brandUrl) return;
+  brandProfileCache=profile;
+  const appendRun=!(opts&&opts.appendRun===false);
+  const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const brandKit=profileSection(profile,'brandKit');
+  const brandGuidelines=profileSection(profile,'brandGuidelines');
+  const assets=Array.isArray(brandKit.assetCandidates)?brandKit.assetCandidates:[];
+  const colors=profileList(brandKit.colorPalette,3);
+  const valueProps=profileList(brandKit.valueProps,4);
+  const pillars=profileList(brandGuidelines.messagingPillars,4);
+  const toneTraits=profileList(brandGuidelines.toneTraits,4);
+  const proofPoints=profileList(brandGuidelines.proofPoints,4);
+
+  const brandKitNode=ensureSourceNodeForHub('brand','brand_kit');
+  if(brandKitNode){
+    brandKitNode.name='Brand Kit';
+    brandKitNode.connected=true;
+    brandKitNode.sync=valueProps.length?`${valueProps.length} value props · ${assets.length} assets`:'loaded from website';
+    setNodeRuns(brandKitNode,{
+      date:stamp,
+      summary:`${profile.companyName||'Brand'} website analysis${sourceLabel?` · ${sourceLabel}`:''}`,
+      count:`${assets.length||1} assets`,
+      url:profile.brandUrl,
+      data:{profile,view:'brand_kit'}
+    },appendRun);
+    refreshNode(brandKitNode.id);
+  }
+
+  const brandGuideNode=ensureSourceNodeForHub('brand','brand_guidelines');
+  if(brandGuideNode){
+    brandGuideNode.name='Brand Guidelines';
+    brandGuideNode.connected=true;
+    brandGuideNode.sync=toneTraits.length?`${toneTraits.join(' · ')}`:'voice + positioning loaded';
+    setNodeRuns(brandGuideNode,{
+      date:stamp,
+      summary:`${pillars.length||toneTraits.length||1} messaging signals synthesized`,
+      count:`${pillars.length||toneTraits.length||1} pillars`,
+      url:profile.brandUrl,
+      data:{profile,view:'brand_guidelines'}
+    },appendRun);
+    refreshNode(brandGuideNode.id);
+  }
+  updateBrandHubSummary(profile);
 }
 async function loadProviderConnections(force=false){
   const now=Date.now();
@@ -3023,11 +4151,12 @@ const BLUEPRINT_BY_SOURCE={
   elevenlabs:'gen_fal_image_node',
   elevenlabs_music:'gen_fal_image_node',
   synth:'brief_synthesizer',
+  storyboard:'storyboard_synthesizer',
   assetgen:'creative_plan_synthesizer'
 };
 function kindForCanvasNode(n){
   if(n.type==='hub') return 'brain_hub';
-  if(n.type==='brief') return 'brief';
+  if(n.type==='brief') return 'synth';
   if(n.type==='output') return 'synth';
   const sid=sourceIdForNode(n);
   if(sid==='comfyui') return 'generation.template';
@@ -3036,6 +4165,8 @@ function kindForCanvasNode(n){
   return 'source_connector';
 }
 function workflowRefForNode(n,sid){
+  if(n&&n.id==='synth') return 'openflow_agent_brief_v1';
+  if(n&&n.id==='storyboard') return 'openflow_agent_storyboard_v1';
   if(sid==='comfyui') return 'comfy_image_ad_v1';
   if(sid==='elevenlabs') return 'elevenlabs_voiceover_v1';
   if(sid==='elevenlabs_music') return 'elevenlabs_video_to_music_v1';
@@ -3044,8 +4175,10 @@ function workflowRefForNode(n,sid){
 function toBackendCanvasDoc(){
   const mappedNodes=nodes.map(n=>{
     const sid=sourceIdForNode(n);
-    const bp=(n.type==='output'&&n.id==='synth')
+    const bp=(n.id==='synth')
       ? BLUEPRINT_BY_SOURCE.synth
+      : (n.id==='storyboard')
+        ? BLUEPRINT_BY_SOURCE.storyboard
       : (n.type==='output'&&n.id==='assetgen')
         ? BLUEPRINT_BY_SOURCE.assetgen
         : BLUEPRINT_BY_SOURCE[sid];
@@ -3080,6 +4213,8 @@ async function withApiBase(path,opts){
     try{
       const res=await fetch(`${base}${path}`,opts);
       if(res.ok){
+        const contentType=String(res.headers.get('content-type')||'').toLowerCase();
+        if(contentType && !contentType.includes('application/json')) continue;
         settingsApiBaseCache=base;
         return res;
       }
@@ -3101,9 +4236,38 @@ async function ensureBackendProductContext(){
   backendRunContext.productId=String(first.id);
   return backendRunContext;
 }
+function isGenerationCanvasNode(node){
+  if(!node) return false;
+  const kind=kindForCanvasNode(node);
+  return String(kind).startsWith('generation.');
+}
+function applyArtifactRunRow(node,step,artifacts,stamp){
+  node._appliedRunSteps=node._appliedRunSteps||{};
+  if(node._appliedRunSteps[step.id]) return false;
+  const primary=artifacts[0]||{};
+  const metadata=(primary&&primary.metadata&&typeof primary.metadata==='object')?primary.metadata:{};
+  const workflowRef=String(metadata.workflowRef||step.nodeKind||node.srcName||node.name||'workflow');
+  const briefCode=String(metadata.briefCode||'').trim();
+  const storyboardCode=String(metadata.storyboardCode||'').trim();
+  const summaryParts=[workflowRef,briefCode,storyboardCode].filter(Boolean);
+  node.runs=[{
+    date:stamp,
+    summary:`${summaryParts.join(' · ')||'Generation run'} · ${artifacts.length||1} asset${(artifacts.length||1)===1?'':'s'}`,
+    count:String(artifacts.length||1),
+    wfName:workflowRef,
+    wfCode:workflowCode(workflowRef),
+    genCode:nextGenerationCode(),
+    url:primary.previewUri||primary.uri||'#',
+    data:{artifacts,step,metadata}
+  },...(node.runs||[])].slice(0,12);
+  node._appliedRunSteps[step.id]=true;
+  return true;
+}
 function applyRunDetailToCanvas(detail){
   if(!detail||!Array.isArray(detail.steps)) return;
   const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const artifacts=Array.isArray(detail.artifacts)?detail.artifacts:[];
+  let assetNodeChanged=false;
   detail.steps.forEach(step=>{
     const node=gn(step.nodeId);
     if(!node) return;
@@ -3114,12 +4278,44 @@ function applyRunDetailToCanvas(detail){
       node.runState='completed';
       node.sync='just now';
       node.connected=true;
-      node.runs=[{
-        date:stamp,
-        summary:'Node run completed',
-        count:'1',
-        url:'#'
-      },...(node.runs||[])].slice(0,12);
+      const stepArtifacts=artifacts.filter(artifact=>artifact&&artifact.stepId===step.id);
+      if(stepArtifacts.length && isGenerationCanvasNode(node)){
+        if(applyArtifactRunRow(node,step,stepArtifacts,stamp)){
+          const assetNode=gn('assetgen');
+          if(assetNode){
+            assetNode._appliedArtifactRuns=assetNode._appliedArtifactRuns||{};
+            if(!assetNode._appliedArtifactRuns[step.id]){
+              const primary=stepArtifacts[0]||{};
+              const metadata=(primary&&primary.metadata&&typeof primary.metadata==='object')?primary.metadata:{};
+              const workflowRef=String(metadata.workflowRef||node.name||'workflow');
+              assetNode.runs=[{
+                date:stamp,
+                summary:`${workflowRef} · ${(stepArtifacts.length||1)} asset${(stepArtifacts.length||1)===1?'':'s'}`,
+                count:String(stepArtifacts.length||1),
+                wfName:workflowRef,
+                wfCode:workflowCode(workflowRef),
+                genCode:nextGenerationCode(),
+                url:primary.previewUri||primary.uri||'#',
+                data:{artifacts:stepArtifacts,step,metadata}
+              },...(assetNode.runs||[])].slice(0,12);
+              assetNode.status='ready';
+              assetNode.connected=true;
+              assetNode.sync='just now';
+              assetNode._appliedArtifactRuns[step.id]=true;
+              assetNodeChanged=true;
+            }
+          }
+        }
+      }else if(!(node._genericCompletedSteps&&node._genericCompletedSteps[step.id])){
+        node._genericCompletedSteps=node._genericCompletedSteps||{};
+        node.runs=[{
+          date:stamp,
+          summary:'Node run completed',
+          count:'1',
+          url:'#'
+        },...(node.runs||[])].slice(0,12);
+        node._genericCompletedSteps[step.id]=true;
+      }
     }else if(step.status==='failed'){
       node.runState='failed';
       node.sync=`failed: ${step.errorMessage||'run error'}`;
@@ -3132,6 +4328,10 @@ function applyRunDetailToCanvas(detail){
     }
     refreshNode(node.id);
   });
+  if(assetNodeChanged){
+    const assetNode=gn('assetgen');
+    if(assetNode) refreshNode(assetNode.id);
+  }
   syncProjectState();
 }
 async function runNodeOrchestration(nodeIds){
@@ -3191,10 +4391,15 @@ function agentBrandAnalysisForHub(hub){
 function summarizeRedditResult(result){
   const count=Array.isArray(result&&result.findings)?result.findings.length:0;
   const insights=Array.isArray(result&&result.insights)?result.insights:[];
+  const meta=(result&&result.insightMeta&&typeof result.insightMeta==='object')?result.insightMeta:{};
+  const newInsightCount=Math.max(0,Number(meta.newInsightCount||insights.length||0));
+  if(meta.noNewInsights===true || newInsightCount===0){
+    return 'No new insights';
+  }
   const top=insights[0] || ((result&&result.findings&&result.findings[0])?result.findings[0]:null);
   const quote=top&&(top.insight||top.text)?String(top.insight||top.text).slice(0,90):'No finding preview';
   const next=result&&result.nextRunAt?new Date(result.nextRunAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'n/a';
-  return `${count} findings · ${quote}${quote.length>=90?'…':''} · next ${next}`;
+  return `${newInsightCount} new insight${newInsightCount===1?'':'s'} · ${quote}${quote.length>=90?'…':''} · next ${next}`;
 }
 function summarizePersonaResult(result){
   const items=Array.isArray(result&&result.items)?result.items:[];
@@ -3203,15 +4408,363 @@ function summarizePersonaResult(result){
   return `${items.length} personas mapped · ${persona}`;
 }
 function summarizePneResult(result){
-  const combos=Array.isArray(result&&result.combos)?result.combos:[];
+  const combos=Array.isArray(result&&result.pneCombos)?result.pneCombos:[];
   const first=combos[0]||{};
   const p=first.persona?String(first.persona):'n/a';
   const n=first.need?String(first.need):'n/a';
   return `${combos.length} PNE combos · ${p} / ${n}`;
 }
+function instructionInputId(nodeId){
+  return `instr-${String(nodeId||'').replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+}
+function readInstructionDraft(nodeId){
+  const el=document.getElementById(instructionInputId(nodeId));
+  if(!el) return '';
+  return String(el.value||'').trim();
+}
+async function loadNodeInstructionMemory(nodeId,force){
+  const node=gn(nodeId);
+  if(!node) return [];
+  if(!force && Array.isArray(node.instructionHistory)) return node.instructionHistory;
+  const workspaceId=workspaceIdForApi();
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/nodes/${encodeURIComponent(nodeId)}/instructions?limit=50`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const data=await res.json();
+    const records=Array.isArray(data&&data.records)?data.records:[];
+    node.instructionHistory=records;
+    return records;
+  }catch{
+    return Array.isArray(node.instructionHistory)?node.instructionHistory:[];
+  }
+}
+async function saveNodeInstructionMemory(nodeId,text){
+  const trimmed=String(text||'').trim();
+  if(!trimmed) return null;
+  const workspaceId=workspaceIdForApi();
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/nodes/${encodeURIComponent(nodeId)}/instructions`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+      body:JSON.stringify({text:trimmed})
+    });
+    const created=await res.json();
+    const node=gn(nodeId);
+    if(node){
+      const current=Array.isArray(node.instructionHistory)?node.instructionHistory:[];
+      node.instructionHistory=[created,...current].slice(0,100);
+    }
+    return created;
+  }catch{
+    return null;
+  }
+}
+async function saveNodeInstruction(nodeId){
+  const text=readInstructionDraft(nodeId);
+  if(!text){
+    showToast(nodeId,'Add instruction text first');
+    return;
+  }
+  await saveNodeInstructionMemory(nodeId,text);
+  const el=document.getElementById(instructionInputId(nodeId));
+  if(el) el.value='';
+  showToast(nodeId,'Instruction context saved');
+  syncProjectState();
+}
+async function showNodeInstructionMemory(nodeId){
+  const rows=await loadNodeInstructionMemory(nodeId,true);
+  if(!rows.length){
+    showToast(nodeId,'No saved instruction context yet');
+    return;
+  }
+  const preview=rows.slice(0,12).reverse().map((row,idx)=>`${idx+1}. [${row.createdAt}] ${row.text}`).join('\n\n');
+  alert(`Saved instruction memory:\n\n${preview}`);
+}
+function insightStableId(item,idx){
+  const core=String((item&&item.insightKey)||(item&&item.themeKey)||(item&&item.insight)||(item&&item.text)||`insight-${idx}`).trim().toLowerCase();
+  return core.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80) || `insight-${idx}`;
+}
+function normalizeRunRowFromBackend(run){
+  if(!run||typeof run!=='object') return null;
+  const stamp=run.runAt?new Date(run.runAt):new Date();
+  const date=stamp.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const findings=Array.isArray(run.findings)?run.findings:[];
+  const insights=Array.isArray(run.insights)?run.insights:[];
+  const meta=(run.meta&&typeof run.meta==='object')?run.meta:{};
+  const newInsightCount=Math.max(0,Number(meta.newInsightCount||insights.length||0));
+  const noNewInsights=meta.noNewInsights===true || newInsightCount===0;
+  const result={
+    findings,
+    insights,
+    recurringSubreddits:Array.isArray(run.recurringSubreddits)?run.recurringSubreddits:[],
+    nextRunAt:run.nextRunAt||null,
+    insightsLibrary:Array.isArray(run.insightsLibrary)?run.insightsLibrary:[],
+    meta
+  };
+  return {
+    _runAtIso:String(run.runAt||''),
+    date,
+    summary:noNewInsights
+      ? 'No new insights'
+      : `${newInsightCount} new insight${newInsightCount===1?'':'s'}`,
+    count:String(noNewInsights?0:newInsightCount),
+    data:result,
+    runId:String(run.id||''),
+    url:'#'
+  };
+}
+function redditRunSemanticKey(row){
+  if(!row||typeof row!=='object') return '';
+  const data=(row.data&&typeof row.data==='object')?row.data:{};
+  const meta=(data.meta&&typeof data.meta==='object')?data.meta:{};
+  if(meta.sourceFingerprint){
+    return [
+      'fp',
+      String(meta.sourceFingerprint||''),
+      String(meta.newInsightCount||0),
+      String(meta.noNewInsights===true?'none':'new')
+    ].join('###');
+  }
+  const insights=Array.isArray(data.insights)?data.insights:[];
+  const references=insights.slice(0,6).map((item,idx)=>{
+    const refs=Array.isArray(item&&item.references)?item.references:[];
+    const ref=refs[0]||{};
+    return [
+      insightStableId(item,idx),
+      String(ref.subreddit||''),
+      String(ref.title||ref.url||'').slice(0,80)
+    ].join('|');
+  }).join('||');
+  return [
+    String(row.summary||'').trim().toLowerCase(),
+    String(row.count||'').trim(),
+    String(insights.length||0),
+    references
+  ].join('###');
+}
+function dedupeRedditRunRows(rows){
+  const list=Array.isArray(rows)?rows.filter(Boolean):[];
+  const out=[];
+  const seenRunIds=new Set();
+  const seenDisplayKeys=new Set();
+  const seenSemanticKeys=new Set();
+  const recentByMinuteSummary=new Map();
+  function richnessScore(row){
+    const data=(row&&row.data&&typeof row.data==='object')?row.data:{};
+    const findings=Array.isArray(data.findings)?data.findings:[];
+    const insights=Array.isArray(data.insights)?data.insights:[];
+    const referenceCount=insights.reduce((sum,item)=>{
+      const refs=Array.isArray(item&&item.references)?item.references:[];
+      return sum+refs.length;
+    },0);
+    return (findings.length*10)+(insights.length*100)+referenceCount;
+  }
+  list.forEach(row=>{
+    const runId=String(row&&row.runId||'').trim();
+    if(runId){
+      if(seenRunIds.has(runId)) return;
+      seenRunIds.add(runId);
+    }
+    const displayKey=[
+      String(row&&row.date||'').trim(),
+      String(row&&row.summary||'').trim().toLowerCase(),
+      String(row&&row.count||'').trim()
+    ].join('###');
+    if(displayKey){
+      if(seenDisplayKeys.has(displayKey)) return;
+      seenDisplayKeys.add(displayKey);
+    }
+    const rowTs=Date.parse(String(row&&row._runAtIso||'')) || 0;
+    const minuteSummaryKey=[
+      String(row&&row.date||'').trim(),
+      String(row&&row.summary||'').trim().toLowerCase()
+    ].join('###');
+    if(minuteSummaryKey){
+      const prevMinute=recentByMinuteSummary.get(minuteSummaryKey);
+      if(prevMinute && rowTs && prevMinute.rowTs && Math.abs(rowTs-prevMinute.rowTs) <= 120000){
+        const prevScore=richnessScore(prevMinute.row);
+        const nextScore=richnessScore(row);
+        if(nextScore>prevScore){
+          out[prevMinute.outIdx]=row;
+          recentByMinuteSummary.set(minuteSummaryKey,{rowTs,row,outIdx:prevMinute.outIdx});
+        }
+        return;
+      }
+    }
+    const semanticKey=redditRunSemanticKey(row);
+    if(semanticKey){
+      if(seenSemanticKeys.has(semanticKey)) return;
+      seenSemanticKeys.add(semanticKey);
+    }
+    out.push(row);
+    if(minuteSummaryKey){
+      recentByMinuteSummary.set(minuteSummaryKey,{rowTs,row,outIdx:out.length-1});
+    }
+  });
+  return out;
+}
+async function fetchRedditRunDetail(runId){
+  const workspaceId=workspaceIdForApi();
+  const id=String(runId||'').trim();
+  if(!workspaceId||!id) return null;
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/reddit/runs/${encodeURIComponent(id)}`,{
+      headers:{...apiAuthHeaders()}
+    });
+    if(!res.ok) return null;
+    const body=await res.json().catch(()=>null);
+    return body&&typeof body==='object' ? body : null;
+  }catch{
+    return null;
+  }
+}
+async function ensureRedditRunData(node,runEntry){
+  if(!node||sourceIdForNode(node)!=='reddit'||!runEntry) return runEntry;
+  if(runEntry.data && Array.isArray(runEntry.data.insights) && runEntry.data.insights.length) return runEntry;
+  const runId=String(runEntry.runId||'').trim();
+  if(runId){
+    const detail=await fetchRedditRunDetail(runId);
+    const normalized=normalizeRunRowFromBackend(detail);
+    if(normalized){
+      const idx=(node.runs||[]).findIndex(r=>String(r.runId||'')===runId);
+      if(idx>=0) node.runs[idx]=normalized;
+      if(normalized.data) node.agentData={type:'reddit',lastResult:normalized.data};
+      return normalized;
+    }
+  }
+  if(node.agentData && node.agentData.lastResult){
+    runEntry.data=node.agentData.lastResult;
+  }
+  return runEntry;
+}
+async function fetchRedditRunHistory(node,limit){
+  if(!node) return [];
+  const workspaceId=workspaceIdForApi();
+  const nodeId=String(node.id||'').trim();
+  if(!workspaceId||!nodeId) return [];
+  try{
+    const qs=`?nodeId=${encodeURIComponent(nodeId)}&limit=${encodeURIComponent(String(limit||12))}`;
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/reddit/runs${qs}`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const body=await res.json();
+    let runs=Array.isArray(body&&body.runs)?body.runs:[];
+    if(!runs.length){
+      const sid=sourceIdForNode(node);
+      const hubId=nodeHubId(node.id);
+      const familyPrefix=hubId&&sid?`${hubId}_${sid}_`:'';
+      const familyRes=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/reddit/runs?limit=${encodeURIComponent(String(Math.max(limit||12,50)))}`,{
+        headers:{...apiAuthHeaders()}
+      });
+      const familyBody=await familyRes.json().catch(()=>null);
+      const allRuns=Array.isArray(familyBody&&familyBody.runs)?familyBody.runs:[];
+      runs=allRuns.filter(run=>{
+        const rawNodeId=String(run&&run.nodeId||'').trim();
+        return rawNodeId===nodeId || (familyPrefix && rawNodeId.startsWith(familyPrefix));
+      });
+    }
+    return dedupeRedditRunRows(runs.map(normalizeRunRowFromBackend).filter(Boolean));
+  }catch{
+    return [];
+  }
+}
+async function hydrateRedditNodeRuns(node){
+  if(!node||sourceIdForNode(node)!=='reddit') return;
+  const rows=await fetchRedditRunHistory(node,12);
+  if(!rows.length) return;
+  node.runs=rows;
+  const latest=rows[0];
+  if(latest&&latest.data){
+    node.agentData={type:'reddit',lastResult:latest.data};
+  }
+  node.sync='just now';
+  refreshNode(node.id);
+}
+async function hydrateAllRedditRunHistory(){
+  const redditNodes=nodes.filter(n=>sourceIdForNode(n)==='reddit');
+  for(const n of redditNodes){
+    await hydrateRedditNodeRuns(n);
+  }
+  syncProjectState();
+}
+function toggleRedditInsightShortlist(nodeId,runId,insightId,checked){
+  if(!nodeId||!insightId) return;
+  const key=`${nodeId}::${runId||'latest'}`;
+  const bucket=redditInsightShortlists[key]||new Set();
+  if(checked) bucket.add(insightId); else bucket.delete(insightId);
+  redditInsightShortlists[key]=bucket;
+  updateRedditInsightSelectionUI(nodeId,runId);
+}
+function updateRedditInsightSelectionUI(nodeId,runId){
+  const key=`${nodeId}::${runId||'latest'}`;
+  const count=redditInsightShortlists[key] ? redditInsightShortlists[key].size : 0;
+  const el=document.getElementById(`ri-selection-${String(nodeId||'').replace(/[^a-zA-Z0-9_-]/g,'_')}-${String(runId||'latest').replace(/[^a-zA-Z0-9_-]/g,'_')}`);
+  if(el){
+    el.textContent=`${count} insight${count===1?'':'s'} selected for analysis`;
+  }
+}
+async function sendShortlistedRedditInsights(nodeId,runId){
+  const node=gn(nodeId);
+  if(!node) return;
+  let runEntry=(node.runs||[]).find(r=>String(r.runId||'')===String(runId||'')) || (node.runs||[])[0];
+  runEntry=await ensureRedditRunData(node,runEntry);
+  const result=runEntry&&runEntry.data?runEntry.data:(node.agentData&&node.agentData.lastResult?node.agentData.lastResult:null);
+  const insights=Array.isArray(result&&result.insights)?result.insights:[];
+  if(!insights.length){
+    showToast(nodeId,'No insights found in this run');
+    return;
+  }
+  const key=`${nodeId}::${runId||'latest'}`;
+  const selectedIds=redditInsightShortlists[key]||new Set();
+  const selectedInsights=insights.filter((it,idx)=>selectedIds.has(insightStableId(it,idx)));
+  if(!selectedInsights.length){
+    showToast(nodeId,'Select at least one insight');
+    return;
+  }
+  const refined=selectedInsights.map(item=>({...item,refinedInsight:String(item.insight||item.text||'').slice(0,260)}));
+  const customerHub=gn('customer');
+  if(customerHub){
+    customerHub.msgs=customerHub.msgs||[];
+    refined.forEach((it,idx)=>{
+      const refs=Array.isArray(it.references)&&it.references.length?it.references:[it.reference||{}];
+      const first=refs[0]||{};
+      customerHub.msgs.push({
+        r:'a',
+        c:`## Reddit Insight ${idx+1}\n\n**Type:** ${it.type||'insight'}\n\n${it.refinedInsight||it.insight||''}\n\nProof: ${first.title||'thread'} (${first.subreddit||'reddit'})\n${first.url||''}`
+      });
+    });
+    refreshNode('customer');
+  }
+  ensureSourceNodeForHub('customer','persona_needs_emotions');
+  ensureSourceNodeForHub('customer','pne_framework');
+  try{
+    const workspaceId=workspaceIdForApi();
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/customer-brain/insights`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+      body:JSON.stringify({nodeId:'customer',selectedInsights:refined})
+    });
+    const stored=await res.json().catch(()=>null);
+    applyCustomerBrainState({
+      ...(customerBrainStateCache||{}),
+      selectedInsights:refined.map((ins,idx)=>({
+        id:`tmp_${idx+1}`,
+        ...ins,
+        mentionCount:Number(ins.mentionCount||0),
+        uniqueUserCount:Number(ins.uniqueUserCount||0)
+      })),
+      personaItems:Array.isArray(customerBrainStateCache&&customerBrainStateCache.personaItems)?customerBrainStateCache.personaItems:[],
+      pneCombos:Array.isArray(customerBrainStateCache&&customerBrainStateCache.pneCombos)?customerBrainStateCache.pneCombos:[]
+    }, stored&&stored.records?'customer insight shortlist saved':'customer insight shortlist');
+  }catch{}
+  showToast('customer',`Shortlisted ${refined.length} Reddit insight${refined.length===1?'':'s'} for ad creation`);
+  syncProjectState();
+}
 async function runAgentNode(nodeId){
   const node=gn(nodeId);
   if(!node||!isAgentNode(node)||node.runState==='running') return false;
+  if(!ensureHostedSubscriptionForRun(node.name||'Node run')) return false;
   const sid=sourceIdForNode(node);
   const hubId=nodeHubId(node.id);
   const hub=hubId?gn(hubId):null;
@@ -3222,31 +4775,57 @@ async function runAgentNode(nodeId){
   try{
     if(sid==='reddit'){
       await ensureBrandProfile();
+      await loadNodeInstructionMemory(node.id,false);
+      const instructionText=readInstructionDraft(node.id);
       const frequencyHours=Math.max(1,Number(node.frequencyHours||REDDIT_DEFAULT_FREQUENCY_HOURS));
       const payload={
         workspaceId:workspaceIdForApi(),
+        nodeId:node.id,
+        productId:currentProjectId,
         brandAnalysis:agentBrandAnalysisForHub(hub),
-        frequencyHours
+        frequencyHours,
+        instructionText:instructionText||undefined,
+        includeInstructionHistory:true
       };
       const result=await callAgentEndpoint('/agents/reddit/scrape',payload);
       node.agentData={type:'reddit',lastResult:result};
+      if(Array.isArray(result&&result.instructionHistory)){
+        node.instructionHistory=result.instructionHistory;
+      }
       node.frequencyHours=frequencyHours;
       node.lastRunAt=Date.now();
       node.nextRunAt=result&&result.nextRunAt?Date.parse(result.nextRunAt):Date.now()+(frequencyHours*3600000);
       node.runs=[{
         date:stamp,
         summary:summarizeRedditResult(result),
-        count:String(Array.isArray(result.findings)?result.findings.length:0),
+        count:String(Math.max(0,Number(
+          (result&&result.insightMeta&&result.insightMeta.newInsightCount) ||
+          (Array.isArray(result&&result.insights) ? result.insights.length : 0)
+        ))),
         data:result,
+        runId:result&&result.runId?String(result.runId):'',
         url:'#'
       },...(node.runs||[])].slice(0,12);
+      await hydrateRedditNodeRuns(node);
+      const inputEl=document.getElementById(instructionInputId(node.id));
+      if(inputEl) inputEl.value='';
     }else if(sid==='persona_needs_emotions'){
       const redditNode=findHubSourceNode(hubId,'reddit');
       const findings=redditNode&&redditNode.agentData&&Array.isArray(redditNode.agentData.lastResult&&redditNode.agentData.lastResult.findings)
         ? redditNode.agentData.lastResult.findings
         : [];
-      if(!findings.length) throw new Error('Run Reddit agent first');
-      const payload={brandAnalysis:agentBrandAnalysisForHub(hub),findings};
+      const selectedInsights=Array.isArray(customerBrainStateCache&&customerBrainStateCache.selectedInsights)
+        ? customerBrainStateCache.selectedInsights
+        : [];
+      if(!findings.length && !selectedInsights.length) throw new Error('Select Reddit insights first');
+      const payload={
+        workspaceId:workspaceIdForApi(),
+        nodeId:node.id,
+        productId:currentProjectId,
+        brandAnalysis:agentBrandAnalysisForHub(hub),
+        findings,
+        selectedInsights
+      };
       const result=await callAgentEndpoint('/agents/persona-needs-emotions',payload);
       node.agentData={type:'persona',lastResult:result};
       node.lastRunAt=Date.now();
@@ -3257,13 +4836,24 @@ async function runAgentNode(nodeId){
         data:result,
         url:'#'
       },...(node.runs||[])].slice(0,12);
+      applyCustomerBrainState({
+        selectedInsights:Array.isArray(customerBrainStateCache&&customerBrainStateCache.selectedInsights)?customerBrainStateCache.selectedInsights:[],
+        personaItems:Array.isArray(result.items)?result.items:[],
+        pneCombos:Array.isArray(customerBrainStateCache&&customerBrainStateCache.pneCombos)?customerBrainStateCache.pneCombos:[]
+      },'persona analysis');
     }else if(sid==='pne_framework'){
       const personaNode=findHubSourceNode(hubId,'persona_needs_emotions');
       const items=personaNode&&personaNode.agentData&&Array.isArray(personaNode.agentData.lastResult&&personaNode.agentData.lastResult.items)
         ? personaNode.agentData.lastResult.items
         : [];
       if(!items.length) throw new Error('Run Persona + Needs + Emotions first');
-      const payload={items,limit:12};
+      const payload={
+        workspaceId:workspaceIdForApi(),
+        nodeId:node.id,
+        productId:currentProjectId,
+        items,
+        limit:12
+      };
       const result=await callAgentEndpoint('/agents/pne-framework',payload);
       node.agentData={type:'pne',lastResult:result};
       node.lastRunAt=Date.now();
@@ -3274,6 +4864,11 @@ async function runAgentNode(nodeId){
         data:result,
         url:'#'
       },...(node.runs||[])].slice(0,12);
+      applyCustomerBrainState({
+        selectedInsights:Array.isArray(customerBrainStateCache&&customerBrainStateCache.selectedInsights)?customerBrainStateCache.selectedInsights:[],
+        personaItems:Array.isArray(customerBrainStateCache&&customerBrainStateCache.personaItems)?customerBrainStateCache.personaItems:items,
+        pneCombos:Array.isArray(result.pneCombos)?result.pneCombos:[]
+      },'pne framework');
     }
     node.connected=true;
     node.sync='just now';
@@ -3344,7 +4939,7 @@ async function sendInsightsToCustomerBrain(redditNodeId){
 function configureRedditFrequency(nodeId){
   const node=gn(nodeId); if(!node) return;
   const current=Math.max(1,Number(node.frequencyHours||REDDIT_DEFAULT_FREQUENCY_HOURS));
-  const entered=prompt('Reddit run frequency (hours)', String(current));
+  const entered=prompt('Reddit run frequency (hours). 24 = 1 day', String(current));
   if(entered===null) return;
   const next=Math.max(1,Number(entered||current));
   node.frequencyHours=Number.isFinite(next)?next:current;
@@ -3385,7 +4980,23 @@ function hubAgentNodesInOrder(hubId){
   });
   return picked;
 }
+function presentationGenerationNodes(){
+  const presentationSources=conns
+    .filter(edge=>edge.t==='presentation')
+    .map(edge=>gn(edge.f))
+    .filter(Boolean)
+    .filter(node=>isGenerationCanvasNode(node)&&node.connected!==false);
+  const order=['comfyui','elevenlabs','elevenlabs_music'];
+  const bySource=new Map();
+  presentationSources.forEach(node=>bySource.set(sourceIdForNode(node),node));
+  const picked=order.map(id=>bySource.get(id)).filter(Boolean);
+  presentationSources.forEach(node=>{
+    if(!picked.includes(node)) picked.push(node);
+  });
+  return picked;
+}
 function outputUpstreamHubIds(outputId){
+  if(outputId==='storyboard') return ['customer','brand','presentation'];
   return conns
     .filter(edge=>edge.t===outputId)
     .map(edge=>edge.f)
@@ -3397,6 +5008,7 @@ function outputUpstreamHubIds(outputId){
 async function runHubFlow(hubId){
   const hub=gn(hubId);
   if(!hub||hub.flowState==='running') return;
+  if(!ensureHostedSubscriptionForRun(`${hub.name||'Hub'} flow`)) return;
   const queue=hubAgentNodesInOrder(hubId);
   if(!queue.length){
     showToast(hubId,'No runnable agent nodes connected to this hub');
@@ -3418,6 +5030,7 @@ async function runHubFlow(hubId){
 async function runOutputFlow(outputId){
   const out=gn(outputId);
   if(!out||out.flowState==='running') return;
+  if(!ensureHostedSubscriptionForRun(`${out.name||'Output'} run`)) return;
   const hubIds=outputUpstreamHubIds(outputId);
   if(!hubIds.length){
     showToast(outputId,'No upstream hubs connected');
@@ -3443,8 +5056,29 @@ async function runOutputFlow(outputId){
         refreshNode(hubId);
       }
     }
+    if(outputId==='assetgen'){
+      presentationGenerationNodes().forEach(node=>runNodeIds.push(node.id));
+    }
+    if(outputId==='storyboard'){
+      runNodeIds.push('synth');
+    }
+    if(outputId==='assetgen'){
+      if(gn('synth')) runNodeIds.push('synth');
+      if(gn('storyboard')) runNodeIds.push('storyboard');
+    }
     runNodeIds.push(outputId);
     await runNodeOrchestration(Array.from(new Set(runNodeIds)));
+    if(outputId==='synth'){
+      await loadPresentationBriefState(false);
+    }
+    if(outputId==='storyboard'){
+      await loadPresentationBriefState(false);
+      await loadPresentationStoryboardState(false);
+    }
+    if(outputId==='assetgen'){
+      await loadPresentationBriefState(false);
+      await loadPresentationStoryboardState(false);
+    }
     out.status='ready';
     out.notifCount=(out.notifCount||0)+1;
     showToast(outputId,`${out.name} upstream flow complete`);
@@ -3456,7 +5090,7 @@ async function runOutputFlow(outputId){
 }
 
 function brainNodeButtons(hubId){
-  const ids=BRAIN_NODE_MAP[hubId]||['csv','api','comfyui','elevenlabs','elevenlabs_music'];
+  const ids=BRAIN_NODE_MAP[hubId]||[];
   return ids.map(id=>{
     const s=SOURCE_TYPES.find(x=>x.id===id);
     if(!s) return '';
@@ -4063,6 +5697,9 @@ async function subscribePlan(planId){
   });
   desktopSettings=next;
   localStorage.setItem(DESKTOP_SETTINGS_STORAGE_KEY,JSON.stringify(desktopSettings));
+  if(isHostedRuntime() && hasWebAuthSession()){
+    setHostedSubscriptionState({active:true,plan:planId,cycle:plansCycle});
+  }
   const remote=await persistSettingsRemote(desktopSettings);
   if(remote){
     desktopSettings=remote;
@@ -4114,7 +5751,7 @@ function openSrcPicker(hubId,event){
   // Build grid
   const grid=document.getElementById('sp-grid');
   grid.innerHTML=SOURCE_TYPES.map(s=>{
-    const used=nodes.some(nd=>nd.id.startsWith(hubId+'_'+s.id));
+    const used=Boolean(existingSourceNodeForHub(hubId,s.id));
     const icoHtml=s.img
       ? `<img src="${s.img}" style="width:26px;height:26px;object-fit:contain;border-radius:4px;display:block">`
       : `<span style="font:700 12px var(--display)">${s.ico}</span>`;
@@ -4141,12 +5778,12 @@ function addSource(hubId,srcId){
   if(!ensureNodeLimit(1)) return;
   const hub=gn(hubId);if(!hub)return;
   const src=SOURCE_TYPES.find(s=>s.id===srcId);if(!src)return;
-  const nodeId=hubId+'_'+srcId+'_'+Date.now();
+  const nodeId=sourceNodeIdForHub(hubId,srcId);
   // Already connected?
-  if(nodes.some(n=>n.id.startsWith(hubId+'_'+srcId))){
-    const existing=nodes.find(n=>n.id.startsWith(hubId+'_'+srcId));
+  const existing=existingSourceNodeForHub(hubId,srcId);
+  if(existing){
     closeSrcPicker();
-    return existing||null;
+    return existing;
   }
   // Position inputs on the left or top side of the hub.
   const spokesBefore=conns.filter(c=>c.t===hubId).length;
@@ -4179,12 +5816,12 @@ function addSource(hubId,srcId){
 }
 
 function ensureSourceNodeForHub(hubId,srcId){
-  const existing=nodes.find(n=>String(n.id||'').startsWith(`${hubId}_${srcId}_`));
+  const existing=existingSourceNodeForHub(hubId,srcId);
   if(existing) return existing;
   const hub=gn(hubId);
   const src=SOURCE_TYPES.find(s=>s.id===srcId);
   if(!hub||!src) return null;
-  const nodeId=`${hubId}_${srcId}_${Date.now()}`;
+  const nodeId=sourceNodeIdForHub(hubId,srcId);
   const spokesBefore=conns.filter(c=>c.t===hubId).length;
   const step=Math.floor(spokesBefore/2);
   const leftSlot=spokesBefore%2===0;
@@ -4208,50 +5845,69 @@ async function bootstrapFirstLoginAssets(){
   const assetNode=gn('assetgen');
   if(!assetNode) return;
 
-  const falNode=ensureSourceNodeForHub('presentation','elevenlabs');
-  const musicNode=ensureSourceNodeForHub('presentation','elevenlabs_music');
-
   const stamp=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  const falRun={
-    date:stamp,
-    summary:'Fal prompt run completed · 3 image concepts generated',
-    count:'3 assets',
-    genCode:nextGenerationCode(),
-    wfName:'fal_image_concepts',
-    wfCode:'WF-FAL-IMAGE',
-    url:'#'
-  };
-  const voiceRun={
-    date:stamp,
-    summary:'ElevenLabs prompt run completed · voiceover + music stem generated',
-    count:'2 assets',
-    genCode:nextGenerationCode(),
-    wfName:'eleven_voice_music_pack',
-    wfCode:'WF-11-AUDIO',
-    url:'#'
-  };
 
-  if(falNode){
-    falNode.connected=true;
-    falNode.sync='just now';
-    falNode.runs=[{
-      date:stamp,summary:'Fal image generation prompt completed',count:'3',url:'#'
-    },...(falNode.runs||[])].slice(0,12);
-    refreshNode(falNode.id);
+  const redditNode=ensureSourceNodeForHub('customer','reddit');
+  if(redditNode){
+    const md=onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.reddit;
+    const insights=Array.isArray(md&&md.insights)?md.insights:[];
+    const findings=Array.isArray(md&&md.findings)?md.findings:[];
+    const recurringSubreddits=Array.isArray(md&&md.recurringSubreddits)?md.recurringSubreddits:[];
+    redditNode.connected=true;
+    redditNode.frequencyHours=REDDIT_DEFAULT_FREQUENCY_HOURS;
+    redditNode.nextRunAt=Date.now()+REDDIT_DEFAULT_FREQUENCY_HOURS*3600000;
+    redditNode.agentData={type:'reddit',lastResult:{findings:findings,insights:insights,recurringSubreddits:recurringSubreddits,nextRunAt:new Date(redditNode.nextRunAt).toISOString()}};
+    redditNode.runs=[{
+      date:stamp,
+      summary:insights.length?`${insights.length} insights generated · seeded onboarding run`:'Seeded onboarding Reddit scan',
+      count:String(findings.length||insights.length||1),
+      url:'#'
+    },...(redditNode.runs||[])].slice(0,12);
+    redditNode.sync='just now';
+    refreshNode(redditNode.id);
   }
-  if(musicNode){
-    musicNode.connected=true;
-    musicNode.sync='just now';
-    musicNode.runs=[{
-      date:stamp,summary:'ElevenLabs music prompt completed',count:'1',url:'#'
-    },...(musicNode.runs||[])].slice(0,12);
-    refreshNode(musicNode.id);
+
+  const seededProfile=onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.brandProfile;
+  if(seededProfile&&seededProfile.brandUrl){
+    applyBrandProfileToCanvas(seededProfile,'onboarding bootstrap');
+  }
+
+  const tmplNode=ensureSourceNodeForHub('presentation','athleisure_templates');
+  if(tmplNode){
+    tmplNode.name='Athleisure Templates';
+    tmplNode.connected=true;
+    tmplNode.sync='category starter templates ready';
+    tmplNode.runs=[{
+      date:stamp,
+      summary:'Athleisure examples seeded',
+      count:'3',
+      url:'#'
+    },...(tmplNode.runs||[])].slice(0,12);
+    refreshNode(tmplNode.id);
+  }
+  const comfyNode=ensureSourceNodeForHub('presentation','comfyui');
+  if(comfyNode){
+    comfyNode.connected=true;
+    comfyNode.sync='3 presets ready';
+    const presetRuns=onboardingPresetRows().map(function(p){
+      return {date:'Ready',summary:`${p.name} · Click to generate`,count:'preset',wfName:p.name,wfCode:workflowCode(p.id),genCode:'GEN-PRESET'};
+    });
+    comfyNode.runs=[...presetRuns,...(comfyNode.runs||[])].slice(0,12);
+    refreshNode(comfyNode.id);
   }
 
   assetNode.status='ready';
   assetNode.sync='just now';
   assetNode.notifCount=(assetNode.notifCount||0)+1;
-  assetNode.runs=[falRun,voiceRun,...(assetNode.runs||[])].slice(0,12);
+  assetNode.runs=[{
+    date:stamp,
+    summary:'Onboarding workflow ready · generate from Comfy presets',
+    count:'ready',
+    genCode:nextGenerationCode(),
+    wfName:'onboarding_seed',
+    wfCode:'WF-ONBOARD',
+    url:'#'
+  },...(assetNode.runs||[])].slice(0,12);
   refreshNode('assetgen');
   syncProjectState();
   try{ localStorage.setItem(FIRST_LOGIN_ASSET_BOOTSTRAP_KEY,'1'); }catch{}
@@ -4370,14 +6026,73 @@ window.addEventListener('message',e=>{
 });
 
 // ── CONTEXT MENU ──────────────────────────────────────────────
-function showCtx(x,y,id){ctxId=id;const m=document.getElementById('ctx');m.style.display='block';m.style.left=Math.min(x,window.innerWidth-170)+'px';m.style.top=Math.min(y,window.innerHeight-60)+'px';}
+function configureNodeContextMenu(id){
+  const node=gn(id);
+  const isReddit=node&&sourceIdForNode(node)==='reddit';
+  const runEvery=document.getElementById('cx-run-every');
+  const selectInsights=document.getElementById('cx-select-insights');
+  const saveContext=document.getElementById('cx-save-context');
+  const viewMemory=document.getElementById('cx-view-memory');
+  if(runEvery){
+    runEvery.classList.toggle('hidden',!isReddit);
+    const span=runEvery.querySelector('span');
+    if(span && isReddit){
+      const hrs=Math.max(1,Number(node.frequencyHours||REDDIT_DEFAULT_FREQUENCY_HOURS));
+      span.textContent=`Run every... (${hrs>=24 && hrs%24===0 ? `${hrs/24} day${hrs===24?'':'s'}` : `${hrs}h`})`;
+    }
+  }
+  if(selectInsights) selectInsights.classList.toggle('hidden',!isReddit);
+  if(saveContext) saveContext.classList.toggle('hidden',!isReddit);
+  if(viewMemory) viewMemory.classList.toggle('hidden',!isReddit);
+}
+function showCtx(x,y,id){
+  ctxId=id;
+  configureNodeContextMenu(id);
+  const m=document.getElementById('ctx');
+  m.style.display='block';
+  m.style.left=Math.min(x,window.innerWidth-190)+'px';
+  m.style.top=Math.min(y,window.innerHeight-180)+'px';
+}
 function hideCtx(){document.getElementById('ctx').style.display='none';ctxId=null;}
+function openNodeMenu(id,event){
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const target=event&&event.currentTarget ? event.currentTarget : null;
+  if(target){
+    const rect=target.getBoundingClientRect();
+    showCtx(rect.right-170,rect.bottom+6,id);
+    return;
+  }
+  showCtx(window.innerWidth/2,window.innerHeight/2,id);
+}
 document.getElementById('cx-del').addEventListener('click',()=>{
   if(!ctxId)return;
   nodes=nodes.filter(n=>n.id!==ctxId);
   conns=conns.filter(c=>c.f!==ctxId&&c.t!==ctxId);
   syncProjectState();
   selected.delete(ctxId);renderAll();hideCtx();
+});
+document.getElementById('cx-run-every').addEventListener('click',()=>{
+  if(!ctxId) return;
+  configureRedditFrequency(ctxId);
+  hideCtx();
+});
+document.getElementById('cx-select-insights').addEventListener('click',()=>{
+  if(!ctxId) return;
+  sendInsightsToCustomerBrain(ctxId);
+  hideCtx();
+});
+document.getElementById('cx-save-context').addEventListener('click',()=>{
+  if(!ctxId) return;
+  saveNodeInstruction(ctxId);
+  hideCtx();
+});
+document.getElementById('cx-view-memory').addEventListener('click',()=>{
+  if(!ctxId) return;
+  showNodeInstructionMemory(ctxId);
+  hideCtx();
 });
 
 // ── EVENT WIRING ──────────────────────────────────────────────
@@ -4468,9 +6183,63 @@ function initProjectPicker(){
   sel.addEventListener('change',e=>switchProject(e.target.value));
 }
 
+function initOnboardingTopStatus(){
+  let active=false;
+  let queue=[];
+  try{
+    const params=new URLSearchParams(window.location.search||'');
+    active=(params.get('onboarding')==='1') || (localStorage.getItem('openflow.onboarding.statusActive')==='1');
+    const raw=localStorage.getItem('openflow.onboarding.statusQueue')||'[]';
+    const parsed=JSON.parse(raw);
+    queue=Array.isArray(parsed)?parsed.map(v=>String(v)).filter(Boolean):[];
+  }catch(_e){
+    active=false;
+    queue=[];
+  }
+  if(!active || !queue.length) return;
+  const live=document.getElementById('sb-live');
+  if(!live) return;
+  let idx=0;
+  live.innerHTML='<span class="sb-dot"></span>'+queue[idx];
+  const t=setInterval(function(){
+    idx += 1;
+    if(idx>=queue.length){
+      clearInterval(t);
+      live.innerHTML='<span class="sb-dot"></span>4 brains live · 3 autonomous';
+      try{
+        localStorage.removeItem('openflow.onboarding.statusQueue');
+        localStorage.removeItem('openflow.onboarding.statusActive');
+      }catch(_e){}
+      return;
+    }
+    live.innerHTML='<span class="sb-dot"></span>'+queue[idx];
+  }, 2200);
+}
+
 // ── DEMO GATE + LOGOUT ───────────────────────────────────────
-const DEMO_SIGNUP_GATE_ENABLED = true;
+const ONBOARDING_FIRST_LOAD = (function(){
+  try{
+    const params=new URLSearchParams(window.location.search||'');
+    if(params.get('onboarding')==='1') return true;
+    return localStorage.getItem('openflow.onboarding.statusActive')==='1';
+  }catch(_e){
+    return false;
+  }
+})();
+function hasWebAuthSession(){
+  try{
+    const raw=localStorage.getItem('openflow.web.auth.v2');
+    if(!raw) return false;
+    const parsed=JSON.parse(raw);
+    const token=String((parsed&&parsed.token)||'').trim();
+    return Boolean(token);
+  }catch(_e){
+    return false;
+  }
+}
+let DEMO_SIGNUP_GATE_ENABLED = !ONBOARDING_FIRST_LOAD && !hasWebAuthSession();
 let demoModalOpen = false;
+let demoForceSignupLock = false;
 const DEMO_ALLOW_SELECTORS = [
   '#demo-signup-backdrop',
   '#demo-signup-modal',
@@ -4483,6 +6252,7 @@ function openDemoSignupModal(){
   bd.classList.add('open');
 }
 function closeDemoSignupModal(){
+  if(demoForceSignupLock) return;
   const bd=document.getElementById('demo-signup-backdrop');
   if(!bd) return;
   demoModalOpen=false;
@@ -4503,6 +6273,11 @@ function shouldInterceptDemoClick(target){
     '#toolbar','.of-side','#vp','#run-drawer','#src-picker','#node-picker','#ctx'
   ].join(','));
   return Boolean(interactive);
+}
+function applyDemoGateOverrides(){
+  if(!ONBOARDING_FIRST_LOAD) return;
+  const signupBtn=document.querySelector('#demo-signup-modal .dsm-btn.primary');
+  if(signupBtn) signupBtn.style.display='none';
 }
 function logoutFromCommandCenter(event){
   event&&event.preventDefault();
@@ -4542,13 +6317,21 @@ Promise.resolve(loadDesktopSettings())
   .then(()=>loadComfyTemplatesLibrary())
   .then(()=>loadProviderConnections(true))
   .then(()=>ensureBrandProfile())
+  .then(()=>loadCustomerBrainState())
+  .then(()=>loadPresentationBriefState(false))
+  .then(()=>loadPresentationStoryboardState(false))
   .then(()=>refreshComfyAvailability(false,true))
   .finally(()=>{
+    applyDemoGateOverrides();
+    initOnboardingTopStatus();
     renderRuntimeToggle();
     renderAll();
     startRedditAutoRuns();
     setTimeout(()=>fitAll(),120);
-    setTimeout(()=>{bootstrapFirstLoginAssets();},260);
+    setTimeout(async ()=>{
+      await bootstrapFirstLoginAssets();
+      await hydrateAllRedditRunHistory();
+    },260);
   });
 const ENABLE_SIMULATED_NOTIFICATIONS = false;
 if(ENABLE_SIMULATED_NOTIFICATIONS){
