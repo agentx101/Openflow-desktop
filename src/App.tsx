@@ -11,6 +11,16 @@ type PublicUser = {
   workspaceId: string;
   onboardingCompleted: boolean;
   brandUrl?: string;
+  entitlement: {
+    mode: "community" | "pro" | "byok";
+    openflowToken: string;
+  };
+  billing: {
+    cycle: "monthly" | "yearly";
+    plan: "standard" | "creator" | "pro";
+    creditsRemaining: number;
+    creditsTotal: number;
+  };
 };
 
 type AuthState = {
@@ -225,7 +235,7 @@ export default function App() {
     const current = sessionOverride || auth;
     if (!current) return;
     const settings = {
-      entitlement: { mode: "community", openflowToken: "" },
+      entitlement: current.user.entitlement || { mode: "community", openflowToken: "" },
       keys: {
         openaiApiKey: "",
         anthropicApiKey: "",
@@ -235,7 +245,7 @@ export default function App() {
         comfyApiKey: ""
       },
       integrations: {},
-      billing: {
+      billing: current.user.billing || {
         cycle: "yearly",
         plan: "standard",
         creditsRemaining: 50400,

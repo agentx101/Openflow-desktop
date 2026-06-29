@@ -1693,6 +1693,7 @@ const projectStore={
   'ugc-sprint':{nodes:nodes.map(n=>({...n,x:n.x+(n.type==='hub'?20:0),y:n.y+(n.type==='hub'?20:0)})),conns:conns.map(c=>({...c}))},
   'retention-lab':{nodes:nodes.map(n=>({...n,x:n.x-(n.type==='hub'?20:0),y:n.y-(n.type==='hub'?20:0)})),conns:conns.map(c=>({...c}))},
 };
+const BASELINE_PROJECT_STORE=JSON.parse(JSON.stringify(projectStore));
 const UNDO_LIMIT=80;
 let undoStack=[];
 let suppressUndoSnapshot=false;
@@ -1706,6 +1707,66 @@ function snapshotSignature(snapshot){
 }
 function snapshotCurrentProject(){
   return {nodes:deepClone(nodes),conns:deepClone(conns)};
+}
+function fallbackProjectId(){
+  return (PROJECTS[0]&&PROJECTS[0].id) || 'motion-golden';
+}
+function restoreBaselineProjectState(pid){
+  const fallbackId=fallbackProjectId();
+  const targetId=projectStore[pid]?pid:fallbackId;
+  const baseline=BASELINE_PROJECT_STORE[targetId]||BASELINE_PROJECT_STORE[fallbackId];
+  if(!baseline) return false;
+  projectStore[targetId]=deepClone(baseline);
+  currentProjectId=targetId;
+  nodes=deepClone(projectStore[targetId].nodes||[]);
+  conns=deepClone(projectStore[targetId].conns||[]);
+  return true;
+}
+function ensureCanvasSeeded(){
+  const active=projectStore[currentProjectId];
+  const activeNodes=active&&Array.isArray(active.nodes)?active.nodes:[];
+  const activeConns=active&&Array.isArray(active.conns)?active.conns:[];
+  if(nodes.length && conns.length) return false;
+  if(activeNodes.length || activeConns.length){
+    nodes=deepClone(activeNodes);
+    conns=deepClone(activeConns);
+    return true;
+  }
+  return restoreBaselineProjectState(currentProjectId);
+}
+function sanitizeProjectSlug(value){
+  return String(value||'')
+    .toLowerCase()
+    .replace(/https?:\/\//g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'')
+    .slice(0,48) || 'workspace';
+}
+function onboardingBrandLabel(){
+  const profile=onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.brandProfile;
+  const company=String(profile&&profile.companyName||'').trim();
+  if(company) return company;
+  const brandUrl=String((onboardingSeedData&&onboardingSeedData.brandUrl)||'').trim();
+  if(!brandUrl) return 'New Brand';
+  return brandUrl.replace(/^https?:\/\//i,'').replace(/\/.*$/,'').replace(/^www\./i,'') || 'New Brand';
+}
+function configureInitialProjectShell(){
+  if(!ONBOARDING_FIRST_LOAD) return;
+  const profile=onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.brandProfile;
+  const workspaceId=String((onboardingSeedData&&onboardingSeedData.workspaceId)||'').trim();
+  const brandUrl=String((profile&&profile.brandUrl)||(onboardingSeedData&&onboardingSeedData.brandUrl)||'').trim();
+  const brandLabel=onboardingBrandLabel();
+  const projectId=`onboarding-${sanitizeProjectSlug(workspaceId||brandUrl||brandLabel)}`;
+  const projectName=`${brandLabel} · Creative Strategy Workflow`;
+  const baseline=deepClone(BASELINE_PROJECT_STORE['motion-golden']||projectStore[fallbackProjectId()]||{nodes:[],conns:[]});
+  PROJECTS.splice(0,PROJECTS.length,{id:projectId,name:projectName});
+  Object.keys(projectStore).forEach(key=>{ delete projectStore[key]; });
+  Object.keys(BASELINE_PROJECT_STORE).forEach(key=>{ delete BASELINE_PROJECT_STORE[key]; });
+  projectStore[projectId]=deepClone(baseline);
+  BASELINE_PROJECT_STORE[projectId]=deepClone(baseline);
+  currentProjectId=projectId;
+  nodes=deepClone(projectStore[projectId].nodes||[]);
+  conns=deepClone(projectStore[projectId].conns||[]);
 }
 function pushUndoSnapshot(){
   if(suppressUndoSnapshot) return;
@@ -2272,6 +2333,7 @@ function buildEl(n){
 }
 
 function renderAll(){
+  ensureCanvasSeeded();
   const layer=nlEl();
   layer.innerHTML='';
   nodes.forEach(n=>layer.appendChild(buildEl(n)));
@@ -2433,6 +2495,23 @@ function persistBrandProfileLocal(profile, sourceLabel, opts){
   syncProjectState();
   renderAll();
 }
+async function persistBrandProfileRemote(profile){
+  const next=ensureBrandProfileShape(profile);
+  const workspaceId=workspaceIdForApi();
+  const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/brand-profile`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+    body:JSON.stringify({
+      brandUrl:next.brandUrl||'',
+      companyName:next.companyName||'',
+      category:next.category||'',
+      targetAudience:next.targetAudience||'',
+      productsCatalog:Array.isArray(next.productsCatalog)?next.productsCatalog:[],
+      analysisJson:next.analysisJson&&typeof next.analysisJson==='object'?next.analysisJson:{}
+    })
+  });
+  return await res.json();
+}
 function latestRunIndex(nodeId){
   const node=gn(nodeId);
   if(!node || !Array.isArray(node.runs) || !node.runs.length) return -1;
@@ -2446,7 +2525,7 @@ function openLatestRunPreview(nodeId){
   }
   openRunPreview(nodeId,idx);
 }
-function saveBrandKitEdits(event){
+async function saveBrandKitEdits(event){
   event&&event.stopPropagation&&event.stopPropagation();
   const next=ensureBrandProfileShape(brandProfileCache||{});
   next.companyName=String((document.getElementById('bk-company')||{}).value||next.companyName||'').trim();
@@ -2457,9 +2536,20 @@ function saveBrandKitEdits(event){
   next.analysisJson.brandKit.colorPalette=textareaToList((document.getElementById('bk-colors')||{}).value);
   next.analysisJson.brandKit.visualSignals=textareaToList((document.getElementById('bk-visuals')||{}).value);
   persistBrandProfileLocal(next,'manual brand kit edit',{appendRun:false});
-  showToast('brand','Brand kit updated locally');
+  try{
+    const saved=await persistBrandProfileRemote(next);
+    if(saved&&saved.brandUrl){
+      brandProfileCache=saved;
+      applyBrandProfileToCanvas(saved,'brand kit saved',{appendRun:false});
+      syncProjectState();
+      renderAll();
+    }
+    showToast('brand','Brand kit saved to workspace');
+  }catch(_e){
+    showToast('brand','Brand kit updated locally');
+  }
 }
-function saveBrandGuidelinesEdits(event){
+async function saveBrandGuidelinesEdits(event){
   event&&event.stopPropagation&&event.stopPropagation();
   const next=ensureBrandProfileShape(brandProfileCache||{});
   next.analysisJson.brandGuidelines.positioningSummary=String((document.getElementById('bg-summary')||{}).value||'').trim();
@@ -2468,7 +2558,18 @@ function saveBrandGuidelinesEdits(event){
   next.analysisJson.brandGuidelines.proofPoints=textareaToList((document.getElementById('bg-proof')||{}).value);
   next.analysisJson.brandGuidelines.ctaStyles=textareaToList((document.getElementById('bg-cta')||{}).value);
   persistBrandProfileLocal(next,'manual guidelines edit',{appendRun:false});
-  showToast('brand','Brand guidelines updated locally');
+  try{
+    const saved=await persistBrandProfileRemote(next);
+    if(saved&&saved.brandUrl){
+      brandProfileCache=saved;
+      applyBrandProfileToCanvas(saved,'guidelines saved',{appendRun:false});
+      syncProjectState();
+      renderAll();
+    }
+    showToast('brand','Brand guidelines saved to workspace');
+  }catch(_e){
+    showToast('brand','Brand guidelines updated locally');
+  }
 }
 function mockReddit(n,r){
   const runId=String(r&&r.runId||'');
@@ -3751,6 +3852,9 @@ function inferBrandUrlFromContext(){
 async function ensureBrandProfile(){
   if(brandProfileCache) return brandProfileCache;
   const workspaceId=workspaceIdForApi();
+  if(ONBOARDING_FIRST_LOAD){
+    setStatusBarLive('Analyzing brand website and building Brand Brain…');
+  }
   try{
     const existingRes=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/brand-profile`,{
       headers:{...apiAuthHeaders()}
@@ -3759,6 +3863,9 @@ async function ensureBrandProfile(){
     if(existing&&existing.brandUrl){
       brandProfileCache=existing;
       applyBrandProfileToCanvas(brandProfileCache,'saved profile');
+      if(ONBOARDING_FIRST_LOAD){
+        setStatusBarLive('Brand kit and guidelines loaded');
+      }
       return brandProfileCache;
     }
   }catch{}
@@ -3773,8 +3880,14 @@ async function ensureBrandProfile(){
     const profile=await res.json();
     brandProfileCache=profile;
     applyBrandProfileToCanvas(brandProfileCache,'website analysis');
+    if(ONBOARDING_FIRST_LOAD){
+      setStatusBarLive('Brand kit and guidelines loaded');
+    }
     return brandProfileCache;
   }catch{
+    if(ONBOARDING_FIRST_LOAD){
+      setStatusBarLive('Brand analysis unavailable · continuing with saved workflow');
+    }
     return null;
   }
 }
@@ -5516,7 +5629,7 @@ async function setRuntimeMode(mode){
 async function loadDesktopSettings(){
   for(const base of SETTINGS_API_CANDIDATES){
     try{
-      const r=await fetch(`${base}/settings`);
+      const r=await fetch(`${base}/settings`,{headers:settingsRequestHeaders()});
       if(r.ok){
         settingsApiBaseCache=base;
         desktopSettings=mergeDesktopSettings(await r.json());
@@ -5549,12 +5662,28 @@ async function loadDesktopSettings(){
 function settingsApiTargets(){
   return settingsApiBaseCache ? [settingsApiBaseCache,...SETTINGS_API_CANDIDATES.filter(b=>b!==settingsApiBaseCache)] : SETTINGS_API_CANDIDATES;
 }
+function hostedAuthToken(){
+  try{
+    const raw=localStorage.getItem('openflow.desktop.auth.v2');
+    if(!raw) return '';
+    const parsed=JSON.parse(raw);
+    return String((parsed&&parsed.token)||'').trim();
+  }catch(_e){
+    return '';
+  }
+}
+function settingsRequestHeaders(extra){
+  const headers=Object.assign({},extra||{});
+  const token=hostedAuthToken();
+  if(token) headers.Authorization=`Bearer ${token}`;
+  return headers;
+}
 async function persistSettingsRemote(payload){
   for(const base of settingsApiTargets()){
     try{
       const r=await fetch(`${base}/settings`,{
         method:'PUT',
-        headers:{'Content-Type':'application/json'},
+        headers:settingsRequestHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify(payload)
       });
       if(r.ok){
@@ -6205,7 +6334,7 @@ function initOnboardingTopStatus(){
     idx += 1;
     if(idx>=queue.length){
       clearInterval(t);
-      live.innerHTML='<span class="sb-dot"></span>4 brains live · 3 autonomous';
+      resetStatusBarLive();
       try{
         localStorage.removeItem('openflow.onboarding.statusQueue');
         localStorage.removeItem('openflow.onboarding.statusActive');
@@ -6226,6 +6355,18 @@ const ONBOARDING_FIRST_LOAD = (function(){
     return false;
   }
 })();
+configureInitialProjectShell();
+const DEFAULT_LIVE_STATUS_HTML='<span class="sb-dot"></span>4 brains live · 3 autonomous';
+function setStatusBarLive(message){
+  const live=document.getElementById('sb-live');
+  if(!live) return;
+  live.innerHTML='<span class="sb-dot"></span>'+esc(message||'4 brains live · 3 autonomous');
+}
+function resetStatusBarLive(){
+  const live=document.getElementById('sb-live');
+  if(!live) return;
+  live.innerHTML=DEFAULT_LIVE_STATUS_HTML;
+}
 function hasWebAuthSession(){
   try{
     const raw=localStorage.getItem('openflow.web.auth.v2');
@@ -6284,12 +6425,20 @@ function logoutFromCommandCenter(event){
   event&&event.stopPropagation();
   try{ localStorage.removeItem('openflow.web.auth.v2'); }catch{}
   try{ localStorage.removeItem('openflow.runtimeApiBase'); }catch{}
+  try{ localStorage.removeItem('openflow.pendingBrandUrl'); }catch{}
+  try{ localStorage.removeItem('openflow.pendingBootstrapId'); }catch{}
+  try{ localStorage.removeItem('openflow.onboarding.statusQueue'); }catch{}
+  try{ localStorage.removeItem('openflow.onboarding.statusActive'); }catch{}
+  try{ localStorage.removeItem(ONBOARDING_SEED_KEY); }catch{}
+  try{ localStorage.removeItem(ONBOARDING_GENERATE_COUNT_KEY); }catch{}
+  try{ localStorage.removeItem(FIRST_LOGIN_ASSET_BOOTSTRAP_KEY); }catch{}
   try{
     const raw=localStorage.getItem('openflow.desktop.settings.v1');
     if(raw){
       const parsed=JSON.parse(raw);
       if(parsed&&parsed.runtime){
         parsed.runtime.hostedAuthToken='';
+        parsed.runtime.hostedWorkspaceId='';
         localStorage.setItem('openflow.desktop.settings.v1',JSON.stringify(parsed));
       }
     }
