@@ -54,3 +54,21 @@ Optional Pro token verification hook:
 - Desktop build workflow: `.github/workflows/desktop-build.yml`
 - Auto version sync workflow: `.github/workflows/sync-version.yml`
 - Required secret to read private backend repo: `OPENFLOW_SYNC_TOKEN`
+
+## Community and contribution
+
+- Code of Conduct: `CODE_OF_CONDUCT.md` (Contributor Covenant)
+- Contributing guide: `CONTRIBUTING.md`
+- Security policy: `SECURITY.md`
+- Governance: `GOVERNANCE.md`
+- Roadmap: `ROADMAP.md`
+- Issue templates: `.github/ISSUE_TEMPLATE/`
+- PR template: `.github/PULL_REQUEST_TEMPLATE.md`
+
+## Project philosophy
+
+Openflow AI is built for builders.
+
+We value shipping over perfection, practical solutions over theoretical elegance, and respectful collaboration over endless debate.
+
+Contributions are welcome, but the project maintains a strong product vision. Not every feature will be accepted. If you want to build something experimental, create a plugin or fork.
