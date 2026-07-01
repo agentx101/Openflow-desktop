@@ -4,9 +4,15 @@ import { WebSocketServer } from "ws";
 import { createServer } from "node:http";
 import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 import { runPersonaNeedEmotion, runPneFramework, runRedditScraper } from "./agentBridge";
 import { DATA_STORE_BLUEPRINT_IDS, getBlueprintById, NODE_BLUEPRINTS } from "./blueprints";
+import {
+  dedupeLocalRedditRunsForResponse,
+  deriveLocalRedditRunState,
+  shouldReusePreviousLocalRedditRun
+} from "./localRedditRuns";
 
 type CanvasNodeKind =
   | "agent"
@@ -34,6 +40,7 @@ type GenerationNodeConfig = {
   inputs?: Record<string, unknown>;
   params?: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
+  uiState?: Record<string, unknown>;
 };
 
 type WorkspaceProviderConnection = {
@@ -120,6 +127,18 @@ type PromptLibraryRecord = {
   updatedAt: string;
 };
 
+type BrandProfileRunRecord = {
+  id: string;
+  workspaceId: string;
+  nodeId: "brand_kit" | "brand_guidelines";
+  runAt: string;
+  summary: string;
+  countLabel: string;
+  sourceLabel: string;
+  profileSnapshot: ReturnType<typeof getWorkspaceBrandProfile>;
+  meta: Record<string, unknown>;
+};
+
 type GenerationJobRequest = {
   workflowRef: string;
   inputs: Record<string, unknown>;
@@ -153,6 +172,7 @@ type DesktopSettings = {
     openaiApiKey: string;
     anthropicApiKey: string;
     customAgentApiKey: string;
+    apifyApiKey: string;
     elevenlabsApiKey: string;
     comfyApiBase: string;
     comfyApiKey: string;
@@ -277,6 +297,7 @@ const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
     openaiApiKey: "",
     anthropicApiKey: "",
     customAgentApiKey: "",
+    apifyApiKey: "",
     elevenlabsApiKey: "",
     comfyApiBase: "",
     comfyApiKey: ""
@@ -404,6 +425,74 @@ CREATE TABLE IF NOT EXISTS prompt_library_records (
   metadata_json TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reddit_scrape_runs (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  product_id TEXT,
+  status TEXT NOT NULL,
+  run_at TEXT NOT NULL,
+  next_run_at TEXT,
+  frequency_hours INTEGER NOT NULL,
+  findings_json TEXT NOT NULL,
+  insights_json TEXT NOT NULL,
+  insights_library_json TEXT NOT NULL,
+  recurring_subreddits_json TEXT NOT NULL,
+  meta_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS node_instruction_memory (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS customer_brain_state (
+  workspace_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  selected_insights_json TEXT NOT NULL,
+  persona_items_json TEXT NOT NULL,
+  pne_combos_json TEXT NOT NULL,
+  selection_mode TEXT NOT NULL,
+  meta_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(workspace_id, product_id, node_id)
+);
+CREATE TABLE IF NOT EXISTS customer_strategy_runs (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  batch_id TEXT NOT NULL,
+  run_at TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  count_label TEXT NOT NULL,
+  source_label TEXT NOT NULL,
+  rows_json TEXT NOT NULL,
+  meta_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workspace_brand_profiles (
+  workspace_id TEXT PRIMARY KEY,
+  brand_url TEXT NOT NULL,
+  company_name TEXT,
+  category TEXT,
+  target_audience TEXT,
+  products_catalog_json TEXT NOT NULL,
+  analysis_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workspace_brand_profile_runs (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  run_at TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  count_label TEXT NOT NULL,
+  source_label TEXT NOT NULL,
+  profile_snapshot_json TEXT NOT NULL,
+  meta_json TEXT NOT NULL
 );`);
 
 for (const tableName of DATA_STORE_BLUEPRINT_IDS) {
@@ -672,6 +761,205 @@ const readPromptLibraryByWorkspaceStmt = db.prepare(`
   FROM prompt_library_records
   WHERE workspace_id = ?
   ORDER BY updated_at DESC
+  LIMIT ?
+`);
+const insertRedditScrapeRunStmt = db.prepare(`
+  INSERT INTO reddit_scrape_runs (
+    id, workspace_id, node_id, product_id, status, run_at, next_run_at, frequency_hours,
+    findings_json, insights_json, insights_library_json, recurring_subreddits_json, meta_json
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const readRedditRunsStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    node_id as nodeId,
+    product_id as productId,
+    status,
+    run_at as runAt,
+    next_run_at as nextRunAt,
+    frequency_hours as frequencyHours,
+    findings_json as findingsJson,
+    insights_json as insightsJson,
+    insights_library_json as insightsLibraryJson,
+    recurring_subreddits_json as recurringSubredditsJson,
+    meta_json as metaJson
+  FROM reddit_scrape_runs
+  WHERE workspace_id = ? AND (? IS NULL OR node_id = ?)
+  ORDER BY run_at DESC
+  LIMIT ?
+`);
+const readRedditRunByIdStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    node_id as nodeId,
+    product_id as productId,
+    status,
+    run_at as runAt,
+    next_run_at as nextRunAt,
+    frequency_hours as frequencyHours,
+    findings_json as findingsJson,
+    insights_json as insightsJson,
+    insights_library_json as insightsLibraryJson,
+    recurring_subreddits_json as recurringSubredditsJson,
+    meta_json as metaJson
+  FROM reddit_scrape_runs
+  WHERE workspace_id = ? AND id = ?
+  LIMIT 1
+`);
+const readLatestRedditRunStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    node_id as nodeId,
+    product_id as productId,
+    status,
+    run_at as runAt,
+    next_run_at as nextRunAt,
+    frequency_hours as frequencyHours,
+    findings_json as findingsJson,
+    insights_json as insightsJson,
+    insights_library_json as insightsLibraryJson,
+    recurring_subreddits_json as recurringSubredditsJson,
+    meta_json as metaJson
+  FROM reddit_scrape_runs
+  WHERE workspace_id = ? AND node_id = ?
+  ORDER BY run_at DESC
+  LIMIT 1
+`);
+const insertNodeInstructionStmt = db.prepare(`
+  INSERT INTO node_instruction_memory (id, workspace_id, node_id, text, created_at)
+  VALUES (?, ?, ?, ?, ?)
+`);
+const readNodeInstructionsStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    node_id as nodeId,
+    text,
+    created_at as createdAt
+  FROM node_instruction_memory
+  WHERE workspace_id = ? AND node_id = ?
+  ORDER BY created_at DESC
+  LIMIT ?
+`);
+const upsertCustomerBrainStateStmt = db.prepare(`
+  INSERT INTO customer_brain_state (
+    workspace_id, product_id, node_id, selected_insights_json, persona_items_json, pne_combos_json,
+    selection_mode, meta_json, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(workspace_id, product_id, node_id) DO UPDATE SET
+    selected_insights_json = excluded.selected_insights_json,
+    persona_items_json = excluded.persona_items_json,
+    pne_combos_json = excluded.pne_combos_json,
+    selection_mode = excluded.selection_mode,
+    meta_json = excluded.meta_json,
+    updated_at = excluded.updated_at
+`);
+const readCustomerBrainStateStmt = db.prepare(`
+  SELECT
+    workspace_id as workspaceId,
+    product_id as productId,
+    node_id as nodeId,
+    selected_insights_json as selectedInsightsJson,
+    persona_items_json as personaItemsJson,
+    pne_combos_json as pneCombosJson,
+    selection_mode as selectionMode,
+    meta_json as metaJson,
+    updated_at as updatedAt
+  FROM customer_brain_state
+  WHERE workspace_id = ? AND product_id = ? AND node_id = ?
+  LIMIT 1
+`);
+const insertCustomerStrategyRunStmt = db.prepare(`
+  INSERT INTO customer_strategy_runs (
+    id, workspace_id, product_id, kind, batch_id, run_at, summary, count_label, source_label, rows_json, meta_json
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const readRecentCustomerStrategyRunsStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    product_id as productId,
+    kind,
+    batch_id as batchId,
+    run_at as runAt,
+    summary,
+    count_label as countLabel,
+    source_label as sourceLabel,
+    rows_json as rowsJson,
+    meta_json as metaJson
+  FROM customer_strategy_runs
+  WHERE workspace_id = ? AND product_id = ? AND kind = ?
+  ORDER BY datetime(run_at) DESC, id DESC
+  LIMIT ?
+`);
+const readCustomerStrategyRunByBatchStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    product_id as productId,
+    kind,
+    batch_id as batchId,
+    run_at as runAt,
+    summary,
+    count_label as countLabel,
+    source_label as sourceLabel,
+    rows_json as rowsJson,
+    meta_json as metaJson
+  FROM customer_strategy_runs
+  WHERE workspace_id = ? AND product_id = ? AND kind = ? AND batch_id = ?
+  ORDER BY datetime(run_at) DESC, id DESC
+  LIMIT 1
+`);
+const upsertWorkspaceBrandProfileStmt = db.prepare(`
+  INSERT INTO workspace_brand_profiles (
+    workspace_id, brand_url, company_name, category, target_audience, products_catalog_json, analysis_json, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(workspace_id) DO UPDATE SET
+    brand_url = excluded.brand_url,
+    company_name = excluded.company_name,
+    category = excluded.category,
+    target_audience = excluded.target_audience,
+    products_catalog_json = excluded.products_catalog_json,
+    analysis_json = excluded.analysis_json,
+    updated_at = excluded.updated_at
+`);
+const readWorkspaceBrandProfileStmt = db.prepare(`
+  SELECT
+    workspace_id as workspaceId,
+    brand_url as brandUrl,
+    company_name as companyName,
+    category,
+    target_audience as targetAudience,
+    products_catalog_json as productsCatalogJson,
+    analysis_json as analysisJson,
+    updated_at as updatedAt
+  FROM workspace_brand_profiles
+  WHERE workspace_id = ?
+  LIMIT 1
+`);
+const insertBrandProfileRunStmt = db.prepare(`
+  INSERT INTO workspace_brand_profile_runs (
+    id, workspace_id, node_id, run_at, summary, count_label, source_label, profile_snapshot_json, meta_json
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const readRecentBrandProfileRunsStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    node_id as nodeId,
+    run_at as runAt,
+    summary,
+    count_label as countLabel,
+    source_label as sourceLabel,
+    profile_snapshot_json as profileSnapshotJson,
+    meta_json as metaJson
+  FROM workspace_brand_profile_runs
+  WHERE workspace_id = ?
+    AND (? IS NULL OR node_id = ?)
+  ORDER BY datetime(run_at) DESC, id DESC
   LIMIT ?
 `);
 const dataStoreInsertStmtCache = new Map<string, Database.Statement>();
@@ -1084,6 +1372,1760 @@ function listPromptLibraryRecords(
     });
 }
 
+function parseJsonArray(value: string) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseJsonObject(value: string) {
+  try {
+    const parsed = JSON.parse(value || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeValue(existingValue: unknown, incomingValue: unknown): unknown {
+  if (Array.isArray(incomingValue)) {
+    if (incomingValue.length > 0) return incomingValue;
+    return Array.isArray(existingValue) ? existingValue : incomingValue;
+  }
+  if (isPlainObject(existingValue) && isPlainObject(incomingValue)) {
+    return mergeBrandAnalysisJson(existingValue, incomingValue);
+  }
+  return incomingValue === undefined ? existingValue : incomingValue;
+}
+
+function mergeBrandAnalysisJson(
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown> | undefined,
+  extra: Record<string, unknown> = {}
+) {
+  const base = isPlainObject(existing) ? existing : {};
+  const next = isPlainObject(incoming) ? incoming : {};
+  const merged: Record<string, unknown> = { ...base };
+  Object.keys(next).forEach((key) => {
+    merged[key] = mergeValue(base[key], next[key]);
+  });
+  Object.keys(extra).forEach((key) => {
+    merged[key] = extra[key];
+  });
+  return merged;
+}
+
+function parseRedditRunRow(row: {
+  id: string;
+  workspaceId: string;
+  nodeId: string;
+  productId: string | null;
+  status: string;
+  runAt: string;
+  nextRunAt: string | null;
+  frequencyHours: number;
+  findingsJson: string;
+  insightsJson: string;
+  insightsLibraryJson: string;
+  recurringSubredditsJson: string;
+  metaJson: string;
+}) {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    nodeId: row.nodeId,
+    productId: row.productId || undefined,
+    status: row.status,
+    runAt: row.runAt,
+    nextRunAt: row.nextRunAt || undefined,
+    frequencyHours: Number(row.frequencyHours || 24),
+    findings: parseJsonArray(row.findingsJson),
+    insights: parseJsonArray(row.insightsJson),
+    insightsLibrary: parseJsonArray(row.insightsLibraryJson),
+    recurringSubreddits: parseJsonArray(row.recurringSubredditsJson),
+    meta: parseJsonObject(row.metaJson)
+  };
+}
+
+function persistRedditScrapeRun(input: {
+  workspaceId: string;
+  nodeId: string;
+  productId?: string;
+  status: "completed" | "failed";
+  runAt: string;
+  nextRunAt?: string;
+  frequencyHours: number;
+  findings: Array<Record<string, unknown>>;
+  insights: Array<Record<string, unknown>>;
+  insightsLibrary: Array<Record<string, unknown>>;
+  recurringSubreddits: Array<Record<string, unknown>>;
+  meta: Record<string, unknown>;
+}) {
+  const previous = listRedditScrapeRuns(input.workspaceId, input.nodeId, 1)[0];
+  if (
+    shouldReusePreviousLocalRedditRun(previous, {
+      nodeId: input.nodeId,
+      status: input.status,
+      findings: input.findings,
+      insights: input.insights,
+      meta: input.meta
+    })
+  ) {
+    return previous;
+  }
+  const id = newId("rr");
+  insertRedditScrapeRunStmt.run(
+    id,
+    input.workspaceId,
+    input.nodeId,
+    input.productId || null,
+    input.status,
+    input.runAt,
+    input.nextRunAt || null,
+    Math.max(1, Number(input.frequencyHours || 24)),
+    JSON.stringify(input.findings || []),
+    JSON.stringify(input.insights || []),
+    JSON.stringify(input.insightsLibrary || []),
+    JSON.stringify(input.recurringSubreddits || []),
+    JSON.stringify(input.meta || {})
+  );
+  const row = readRedditRunByIdStmt.get(input.workspaceId, id) as
+    | {
+        id: string;
+        workspaceId: string;
+        nodeId: string;
+        productId: string | null;
+        status: string;
+        runAt: string;
+        nextRunAt: string | null;
+        frequencyHours: number;
+        findingsJson: string;
+        insightsJson: string;
+        insightsLibraryJson: string;
+        recurringSubredditsJson: string;
+        metaJson: string;
+      }
+    | undefined;
+  if (!row) throw new Error("Failed to persist Reddit scrape run");
+  return parseRedditRunRow(row);
+}
+
+function listRedditScrapeRuns(workspaceId: string, nodeId?: string, limit = 20) {
+  const rows = readRedditRunsStmt.all(
+    workspaceId,
+    nodeId || null,
+    nodeId || null,
+    Math.max(1, Math.min(200, Math.floor(limit)))
+  ) as Array<{
+    id: string;
+    workspaceId: string;
+    nodeId: string;
+    productId: string | null;
+    status: string;
+    runAt: string;
+    nextRunAt: string | null;
+    frequencyHours: number;
+    findingsJson: string;
+    insightsJson: string;
+    insightsLibraryJson: string;
+    recurringSubredditsJson: string;
+    metaJson: string;
+  }>;
+  return rows.map(parseRedditRunRow);
+}
+
+function getRedditScrapeRunById(workspaceId: string, runId: string) {
+  const row = readRedditRunByIdStmt.get(workspaceId, runId) as
+    | {
+        id: string;
+        workspaceId: string;
+        nodeId: string;
+        productId: string | null;
+        status: string;
+        runAt: string;
+        nextRunAt: string | null;
+        frequencyHours: number;
+        findingsJson: string;
+        insightsJson: string;
+        insightsLibraryJson: string;
+        recurringSubredditsJson: string;
+        metaJson: string;
+      }
+    | undefined;
+  return row ? parseRedditRunRow(row) : null;
+}
+
+function listNodeInstructionMemory(workspaceId: string, nodeId: string, limit = 50) {
+  const rows = readNodeInstructionsStmt.all(workspaceId, nodeId, Math.max(1, Math.min(200, Math.floor(limit)))) as Array<{
+    id: string;
+    workspaceId: string;
+    nodeId: string;
+    text: string;
+    createdAt: string;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    workspaceId: row.workspaceId,
+    nodeId: row.nodeId,
+    text: row.text,
+    createdAt: row.createdAt
+  }));
+}
+
+function createNodeInstructionMemory(input: { workspaceId: string; nodeId: string; text: string; createdAt?: string }) {
+  const row = {
+    id: newId("instr"),
+    workspaceId: input.workspaceId,
+    nodeId: input.nodeId,
+    text: String(input.text || "").trim(),
+    createdAt: String(input.createdAt || nowIso())
+  };
+  insertNodeInstructionStmt.run(row.id, row.workspaceId, row.nodeId, row.text, row.createdAt);
+  return row;
+}
+
+function getCustomerBrainState(workspaceId: string, productId: string, nodeId = "customer") {
+  const row = readCustomerBrainStateStmt.get(workspaceId, productId, nodeId) as
+    | {
+        workspaceId: string;
+        productId: string;
+        nodeId: string;
+        selectedInsightsJson: string;
+        personaItemsJson: string;
+        pneCombosJson: string;
+        selectionMode: string;
+        metaJson: string;
+        updatedAt: string;
+      }
+    | undefined;
+  if (!row) {
+    return {
+      workspaceId,
+      productId,
+      nodeId,
+      selectedInsights: [],
+      personaItems: [],
+      pneCombos: [],
+      selectionMode: "none",
+      meta: {},
+      updatedAt: nowIso()
+    };
+  }
+  return {
+    workspaceId: row.workspaceId,
+    productId: row.productId,
+    nodeId: row.nodeId,
+    selectedInsights: parseJsonArray(row.selectedInsightsJson),
+    personaItems: parseJsonArray(row.personaItemsJson),
+    pneCombos: parseJsonArray(row.pneCombosJson),
+    selectionMode: String(row.selectionMode || "none"),
+    meta: parseJsonObject(row.metaJson),
+    updatedAt: row.updatedAt
+  };
+}
+
+function deriveActivePneIdFromRows(rows: Array<Record<string, unknown>>, preferredId?: string | null) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  const wanted = String(preferredId || "").trim();
+  if (wanted && normalizedRows.some((item) => String(item.id || "").trim() === wanted)) return wanted;
+  const flagged = normalizedRows.find((item) => Boolean(item.isPrimary) && String(item.id || "").trim());
+  if (flagged) return String(flagged.id || "").trim();
+  const first = normalizedRows[0];
+  return String((first && first.id) || "").trim();
+}
+
+function withNormalizedPrimaryPneRows(rows: Array<Record<string, unknown>>, preferredId?: string | null) {
+  const normalizedRows = (Array.isArray(rows) ? rows : [])
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({ ...item }));
+  const activePneId = deriveActivePneIdFromRows(normalizedRows, preferredId);
+  return normalizedRows.map((item, idx) => ({
+    ...item,
+    isPrimary: activePneId ? String(item.id || "").trim() === activePneId : idx === 0
+  }));
+}
+
+function parseWorkspaceBrandProfileRow(row: {
+  workspaceId: string;
+  brandUrl: string;
+  companyName: string | null;
+  category: string | null;
+  targetAudience: string | null;
+  productsCatalogJson: string;
+  analysisJson: string;
+  updatedAt: string;
+}) {
+  return {
+    workspaceId: row.workspaceId,
+    brandUrl: row.brandUrl,
+    companyName: row.companyName || "",
+    category: row.category || "",
+    targetAudience: row.targetAudience || "",
+    productsCatalog: parseJsonArray(row.productsCatalogJson).map((entry) => String(entry || "")).filter(Boolean),
+    analysisJson: parseJsonObject(row.analysisJson),
+    updatedAt: row.updatedAt
+  };
+}
+
+function getWorkspaceBrandProfile(workspaceId: string) {
+  const row = readWorkspaceBrandProfileStmt.get(workspaceId) as
+    | {
+        workspaceId: string;
+        brandUrl: string;
+        companyName: string | null;
+        category: string | null;
+        targetAudience: string | null;
+        productsCatalogJson: string;
+        analysisJson: string;
+        updatedAt: string;
+      }
+    | undefined;
+  return row ? parseWorkspaceBrandProfileRow(row) : null;
+}
+
+function upsertWorkspaceBrandProfile(
+  workspaceId: string,
+  input: {
+    brandUrl: string;
+    companyName?: string;
+    category?: string;
+    targetAudience?: string;
+    productsCatalog?: string[];
+    analysisJson?: Record<string, unknown>;
+  }
+) {
+  const normalized = {
+    workspaceId,
+    brandUrl: normalizeBrandUrl(input.brandUrl),
+    companyName: String(input.companyName || "").trim(),
+    category: String(input.category || "").trim(),
+    targetAudience: String(input.targetAudience || "").trim(),
+    productsCatalog: Array.isArray(input.productsCatalog)
+      ? Array.from(new Set(input.productsCatalog.map((value) => String(value || "").trim()).filter(Boolean))).slice(0, 24)
+      : [],
+    analysisJson: isPlainObject(input.analysisJson) ? input.analysisJson : {},
+    updatedAt: nowIso()
+  };
+  upsertWorkspaceBrandProfileStmt.run(
+    normalized.workspaceId,
+    normalized.brandUrl,
+    normalized.companyName || null,
+    normalized.category || null,
+    normalized.targetAudience || null,
+    JSON.stringify(normalized.productsCatalog),
+    JSON.stringify(normalized.analysisJson),
+    normalized.updatedAt
+  );
+  return getWorkspaceBrandProfile(workspaceId);
+}
+
+function toBrandProfileRunRecord(
+  row:
+    | {
+        id: string;
+        workspaceId: string;
+        nodeId: "brand_kit" | "brand_guidelines";
+        runAt: string;
+        summary: string;
+        countLabel: string;
+        sourceLabel: string;
+        profileSnapshotJson: string;
+        metaJson: string;
+      }
+    | undefined
+) {
+  if (!row) return null;
+  const profileSnapshot = parseJsonObject(row.profileSnapshotJson);
+  if (!profileSnapshot || typeof profileSnapshot !== "object" || !profileSnapshot.brandUrl) return null;
+  const meta = parseJsonObject(row.metaJson);
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    nodeId: row.nodeId,
+    runAt: row.runAt,
+    summary: row.summary,
+    countLabel: row.countLabel,
+    sourceLabel: row.sourceLabel,
+    profileSnapshot,
+    meta
+  };
+}
+
+function createBrandProfileRun(input: {
+  workspaceId: string;
+  nodeId: "brand_kit" | "brand_guidelines";
+  runAt?: string;
+  summary: string;
+  countLabel: string;
+  sourceLabel: string;
+  profileSnapshot: ReturnType<typeof getWorkspaceBrandProfile>;
+  meta?: Record<string, unknown>;
+}) {
+  const record = {
+    id: newId("bpr"),
+    workspaceId: String(input.workspaceId || "").trim(),
+    nodeId: input.nodeId,
+    runAt: String(input.runAt || nowIso()).trim() || nowIso(),
+    summary: String(input.summary || "").trim(),
+    countLabel: String(input.countLabel || "").trim(),
+    sourceLabel: String(input.sourceLabel || "").trim(),
+    profileSnapshot: input.profileSnapshot,
+    meta: isPlainObject(input.meta) ? input.meta : {}
+  };
+  insertBrandProfileRunStmt.run(
+    record.id,
+    record.workspaceId,
+    record.nodeId,
+    record.runAt,
+    record.summary,
+    record.countLabel,
+    record.sourceLabel,
+    JSON.stringify(record.profileSnapshot || {}),
+    JSON.stringify(record.meta)
+  );
+  return record;
+}
+
+function listBrandProfileRuns(workspaceId: string, nodeId?: "brand_kit" | "brand_guidelines", limit = 20) {
+  const rows = readRecentBrandProfileRunsStmt.all(
+    workspaceId,
+    nodeId || null,
+    nodeId || null,
+    Math.max(1, Math.min(200, Math.floor(limit)))
+  ) as Array<{
+    id: string;
+    workspaceId: string;
+    nodeId: "brand_kit" | "brand_guidelines";
+    runAt: string;
+    summary: string;
+    countLabel: string;
+    sourceLabel: string;
+    profileSnapshotJson: string;
+    metaJson: string;
+  }>;
+  return rows
+    .map((row) => toBrandProfileRunRecord(row))
+    .filter(Boolean);
+}
+
+function normalizeBrandUrl(value: string) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(candidate);
+    parsed.hash = "";
+    parsed.search = "";
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return candidate.replace(/\/+$/, "");
+  }
+}
+
+function inferCompanyNameFromUrl(brandUrl: string) {
+  const normalized = normalizeBrandUrl(brandUrl);
+  if (!normalized) return "Openflow Brand";
+  try {
+    const host = new URL(normalized).hostname.replace(/^www\./i, "");
+    const domain = host.split(".")[0] || "brand";
+    return domain
+      .split(/[-_]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  } catch {
+    return "Openflow Brand";
+  }
+}
+
+function inferCategoryFromSignals(text: string, fallback = "general") {
+  const lc = String(text || "").toLowerCase();
+  if (/(athleisure|activewear|leggings|workout|gym wear|sports bra|sport|fitness apparel)/.test(lc)) return "athleisure";
+  if (/(beauty|skincare|serum|moisturizer|cosmetic|cleanser)/.test(lc)) return "beauty";
+  if (/(sleep|baby|kids|children|pajamas|crib)/.test(lc)) return "kids lifestyle";
+  if (/(supplement|vitamin|wellness|protein|nutrition)/.test(lc)) return "wellness";
+  return String(fallback || "general").trim() || "general";
+}
+
+function inferTargetAudience(category: string, signalText: string, fallback = "") {
+  const lc = `${category} ${signalText}`.toLowerCase();
+  if (/(women|female|moms|mother)/.test(lc) && /(activewear|athleisure|fitness)/.test(lc)) {
+    return "Women looking for comfortable, flattering performance wear";
+  }
+  if (/(baby|kids|children|parents|toddlers)/.test(lc)) {
+    return "Parents shopping for children and family essentials";
+  }
+  if (/(beauty|skincare)/.test(lc)) {
+    return "Routine-conscious shoppers comparing efficacy, comfort, and trust";
+  }
+  return String(fallback || "").trim() || "High-intent online shoppers";
+}
+
+function extractTagText(html: string, tag: string, limit = 4) {
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
+  const values: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html)) && values.length < limit) {
+    const text = String(match[1] || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) values.push(text);
+  }
+  return values;
+}
+
+function extractMetaContent(html: string, names: string[]) {
+  for (const name of names) {
+    const regex = new RegExp(
+      `<meta[^>]+(?:name|property)=["']${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+      "i"
+    );
+    const match = html.match(regex);
+    if (match?.[1]) return String(match[1]).trim();
+  }
+  return "";
+}
+
+function uniqStrings(values: unknown[], limit = 6) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean))).slice(0, limit);
+}
+
+async function analyzeBrandProfile(brandUrl: string) {
+  const normalizedUrl = normalizeBrandUrl(brandUrl);
+  const fallbackCompany = inferCompanyNameFromUrl(normalizedUrl);
+  const baseResult = {
+    brandUrl: normalizedUrl,
+    companyName: fallbackCompany,
+    category: inferCategoryFromSignals(normalizedUrl, "general"),
+    targetAudience: "High-intent online shoppers",
+    productsCatalog: [] as string[],
+    analysisJson: {
+      source: "local_url_inference",
+      analyzedAt: nowIso(),
+      siteMeta: {
+        title: "",
+        description: "",
+        heroHeadlines: [] as string[],
+        secondaryHeadlines: [] as string[]
+      },
+      brandKit: {
+        colorPalette: [] as string[],
+        assetCandidates: [] as string[],
+        valueProps: [] as string[],
+        visualSignals: [] as string[]
+      },
+      brandGuidelines: {
+        toneTraits: [] as string[],
+        messagingPillars: [] as string[],
+        proofPoints: [] as string[],
+        ctaStyles: [] as string[],
+        positioningSummary: `${fallbackCompany} positioning will be refined after website analysis.`
+      }
+    }
+  };
+  if (!normalizedUrl) return baseResult;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(normalizedUrl, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { "user-agent": "OpenflowDesktop/1.0 (+local-brand-analysis)" }
+    });
+    if (!res.ok) return baseResult;
+    const html = await res.text();
+    const title = extractTagText(html, "title", 1)[0] || "";
+    const description = extractMetaContent(html, ["description", "og:description", "twitter:description"]);
+    const siteName = extractMetaContent(html, ["og:site_name", "application-name"]);
+    const h1s = extractTagText(html, "h1", 4);
+    const h2s = extractTagText(html, "h2", 6);
+    const visibleSignal = `${normalizedUrl} ${title} ${description} ${siteName} ${h1s.join(" ")} ${h2s.join(" ")}`;
+    const category = inferCategoryFromSignals(visibleSignal, baseResult.category);
+    const companyName = siteName || title.split(/[|\-–—]/)[0]?.trim() || fallbackCompany;
+    const targetAudience = inferTargetAudience(category, visibleSignal, baseResult.targetAudience);
+    const productsCatalog = uniqStrings([...h1s, ...h2s], 6);
+    return {
+      brandUrl: normalizedUrl,
+      companyName,
+      category,
+      targetAudience,
+      productsCatalog,
+      analysisJson: {
+        source: "local_website_fetch",
+        analyzedAt: nowIso(),
+        siteMeta: {
+          title,
+          description,
+          heroHeadlines: h1s,
+          secondaryHeadlines: h2s
+        },
+        brandKit: {
+          colorPalette: [],
+          assetCandidates: [],
+          valueProps: uniqStrings([description, ...h1s, ...h2s], 5),
+          visualSignals: uniqStrings([
+            category === "athleisure" ? "Movement and fit-focused merchandising" : "",
+            /collection|drop|shop/i.test(visibleSignal) ? "Collection-led shopping journey" : "",
+            /video|watch/i.test(visibleSignal) ? "Video-forward merchandising cues" : ""
+          ], 4)
+        },
+        brandGuidelines: {
+          toneTraits: uniqStrings([
+            /premium|luxury/i.test(visibleSignal) ? "premium" : "",
+            /comfort|soft/i.test(visibleSignal) ? "comfort-led" : "",
+            /performance|technical/i.test(visibleSignal) ? "performance-led" : "",
+            /community|story/i.test(visibleSignal) ? "community-aware" : ""
+          ], 4),
+          messagingPillars: uniqStrings([
+            description,
+            h1s[0],
+            category === "athleisure" ? "Performance and comfort without compromise" : ""
+          ], 4),
+          proofPoints: uniqStrings([
+            /review|testimonial/i.test(visibleSignal) ? "Review and social proof language appears on site" : "",
+            /best seller|bestseller/i.test(visibleSignal) ? "Hero or bestseller merchandising appears on site" : ""
+          ], 4),
+          ctaStyles: uniqStrings([
+            /shop now/i.test(visibleSignal) ? "Shop now" : "",
+            /learn more/i.test(visibleSignal) ? "Learn more" : "",
+            /explore/i.test(visibleSignal) ? "Explore collection" : ""
+          ], 4),
+          positioningSummary: description || `${companyName} focuses on ${category} offers for ${targetAudience}.`
+        }
+      }
+    };
+  } catch {
+    return baseResult;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function brandProfileList(values: unknown, limit: number) {
+  if (!Array.isArray(values)) return [];
+  return values.map((value) => String(value || "").trim()).filter(Boolean).slice(0, Math.max(0, limit));
+}
+
+function summarizeBrandKitProfile(profile: ReturnType<typeof getWorkspaceBrandProfile>, sourceLabel?: string) {
+  const analysis = isPlainObject(profile?.analysisJson) ? profile.analysisJson : {};
+  const brandKit = isPlainObject((analysis as Record<string, unknown>).brandKit)
+    ? ((analysis as Record<string, unknown>).brandKit as Record<string, unknown>)
+    : {};
+  const valueProps = brandProfileList(brandKit.valueProps, 8);
+  const colors = brandProfileList(brandKit.colorPalette, 8);
+  const products = brandProfileList(profile?.productsCatalog, 8);
+  const assetCandidates = Array.isArray(brandKit.assetCandidates) ? brandKit.assetCandidates : [];
+  const prefix = /starter|bootstrap|onboarding|preserved/i.test(String(sourceLabel || ""))
+    ? "Starter brand kit ready"
+    : "Brand kit loaded";
+  const parts = [
+    valueProps.length ? `${valueProps.length} value prop${valueProps.length === 1 ? "" : "s"}` : "",
+    products.length ? `${products.length} product cue${products.length === 1 ? "" : "s"}` : "",
+    assetCandidates.length ? `${assetCandidates.length} asset candidate${assetCandidates.length === 1 ? "" : "s"}` : "",
+    colors.length ? `${colors.length} color cue${colors.length === 1 ? "" : "s"}` : ""
+  ].filter(Boolean);
+  return `${prefix}${parts.length ? ` · ${parts.slice(0, 3).join(" · ")}` : ""}`;
+}
+
+function summarizeBrandGuidelinesProfile(profile: ReturnType<typeof getWorkspaceBrandProfile>, sourceLabel?: string) {
+  const analysis = isPlainObject(profile?.analysisJson) ? profile.analysisJson : {};
+  const guidelines = isPlainObject((analysis as Record<string, unknown>).brandGuidelines)
+    ? ((analysis as Record<string, unknown>).brandGuidelines as Record<string, unknown>)
+    : {};
+  const toneTraits = brandProfileList(guidelines.toneTraits, 8);
+  const pillars = brandProfileList(guidelines.messagingPillars, 8);
+  const proofPoints = brandProfileList(guidelines.proofPoints, 8);
+  const prefix = /starter|bootstrap|onboarding|preserved/i.test(String(sourceLabel || ""))
+    ? "Starter guidelines ready"
+    : "Messaging system mapped";
+  const parts = [
+    pillars.length ? `${pillars.length} pillar${pillars.length === 1 ? "" : "s"}` : "",
+    toneTraits.length ? `${toneTraits.length} tone trait${toneTraits.length === 1 ? "" : "s"}` : "",
+    proofPoints.length ? `${proofPoints.length} proof cue${proofPoints.length === 1 ? "" : "s"}` : ""
+  ].filter(Boolean);
+  return `${prefix}${parts.length ? ` · ${parts.slice(0, 3).join(" · ")}` : ""}`;
+}
+
+function brandProfileCountLabel(profile: ReturnType<typeof getWorkspaceBrandProfile>, nodeId: "brand_kit" | "brand_guidelines") {
+  const analysis = isPlainObject(profile?.analysisJson) ? profile.analysisJson : {};
+  if (nodeId === "brand_guidelines") {
+    const guidelines = isPlainObject((analysis as Record<string, unknown>).brandGuidelines)
+      ? ((analysis as Record<string, unknown>).brandGuidelines as Record<string, unknown>)
+      : {};
+    const pillars = brandProfileList(guidelines.messagingPillars, 8);
+    const tones = brandProfileList(guidelines.toneTraits, 8);
+    const proofs = brandProfileList(guidelines.proofPoints, 8);
+    return `${Math.max(pillars.length, tones.length, proofs.length, 1)} signals`;
+  }
+  const brandKit = isPlainObject((analysis as Record<string, unknown>).brandKit)
+    ? ((analysis as Record<string, unknown>).brandKit as Record<string, unknown>)
+    : {};
+  const valueProps = brandProfileList(brandKit.valueProps, 8);
+  const colors = brandProfileList(brandKit.colorPalette, 8);
+  const products = brandProfileList(profile?.productsCatalog, 8);
+  const assets = Array.isArray(brandKit.assetCandidates) ? brandKit.assetCandidates : [];
+  return `${Math.max(valueProps.length, colors.length, products.length, assets.length, 1)} signals`;
+}
+
+function persistBrandProfileRuns(
+  workspaceId: string,
+  profile: ReturnType<typeof getWorkspaceBrandProfile>,
+  sourceLabel: string,
+  meta?: Record<string, unknown>
+) {
+  if (!profile || !profile.brandUrl) return [];
+  return ([
+    { nodeId: "brand_kit" as const, summary: summarizeBrandKitProfile(profile, sourceLabel) },
+    { nodeId: "brand_guidelines" as const, summary: summarizeBrandGuidelinesProfile(profile, sourceLabel) }
+  ]).map((item) =>
+    createBrandProfileRun({
+      workspaceId,
+      nodeId: item.nodeId,
+      runAt: profile.updatedAt || nowIso(),
+      summary: item.summary,
+      countLabel: brandProfileCountLabel(profile, item.nodeId),
+      sourceLabel,
+      profileSnapshot: profile,
+      meta
+    })
+  );
+}
+
+function takeScopedRecentRecords(
+  records: Array<{ payload: Record<string, unknown>; ingestedAt: string } & Record<string, unknown>>,
+  limit: number,
+  productId?: string
+) {
+  const scoped = productId
+    ? records.filter((record) => String((record.payload && record.payload.productId) || "").trim() === String(productId).trim())
+    : records;
+  return scoped.slice(0, Math.max(1, limit));
+}
+
+function buildCustomerBrainPneState(workspaceId: string, productId?: string) {
+  const state = getCustomerBrainState(workspaceId, productId || "p-motion-canvas", "customer");
+  const normalizedPneCombos = withNormalizedPrimaryPneRows(
+    Array.isArray(state.pneCombos) ? (state.pneCombos as Array<Record<string, unknown>>) : [],
+    String((state.meta && (state.meta as Record<string, unknown>).activePneId) || "").trim()
+  );
+  const activePneId = deriveActivePneIdFromRows(
+    normalizedPneCombos,
+    String((state.meta && (state.meta as Record<string, unknown>).activePneId) || "").trim()
+  );
+  return {
+    selectedInsights: state.selectedInsights,
+    personaItems: state.personaItems,
+    pneCombos: normalizedPneCombos,
+    selectionMode: state.selectionMode,
+    meta: { ...(state.meta || {}), activePneId },
+    updatedAt: state.updatedAt
+  };
+}
+
+function listBriefLibraryRecords(workspaceId: string, limit = 12, productId?: string) {
+  return takeScopedRecentRecords(listRecentDataStoreRecords("db_briefs_library", workspaceId, limit * 4), limit, productId).map((record) => ({
+    recordId: record.id,
+    sourceNodeId: record.sourceNodeId,
+    runId: record.runId,
+    ingestedAt: record.ingestedAt,
+    ...((record.payload && typeof record.payload === "object" ? record.payload : {}) as Record<string, unknown>)
+  }));
+}
+
+function listStoryboardLibraryRecords(workspaceId: string, limit = 12, productId?: string) {
+  return takeScopedRecentRecords(listRecentDataStoreRecords("db_storyboard_library", workspaceId, limit * 4), limit, productId).map((record) => ({
+    recordId: record.id,
+    sourceNodeId: record.sourceNodeId,
+    runId: record.runId,
+    ingestedAt: record.ingestedAt,
+    ...((record.payload && typeof record.payload === "object" ? record.payload : {}) as Record<string, unknown>)
+  }));
+}
+
+function presentationRevisionTimestampValue(record: Record<string, unknown>): number {
+  const stamp = String(record.updatedAt || record.ingestedAt || record.createdAt || "").trim();
+  const millis = stamp ? Date.parse(stamp) : Number.NaN;
+  return Number.isFinite(millis) ? millis : 0;
+}
+
+function presentationRevisionVersionValue(record: Record<string, unknown>): number {
+  return Number(record.version || 0) || 0;
+}
+
+function matchesPresentationRevisionCandidate(
+  record: Record<string, unknown>,
+  incomingId: string,
+  incomingCode: string,
+  incomingRootId: string
+) {
+  const recordId = String(record.id || record.recordId || "").trim();
+  const recordRootId = String(record.rootId || "").trim();
+  const recordCode = String(record.code || "").trim();
+  return Boolean(
+    (incomingRootId && (recordRootId === incomingRootId || recordId === incomingRootId)) ||
+      (incomingId && (recordId === incomingId || recordRootId === incomingId)) ||
+      (incomingCode && recordCode === incomingCode)
+  );
+}
+
+function buildNextPresentationArtifactRevision(
+  existingRecords: Array<Record<string, unknown>>,
+  incoming: Record<string, unknown>,
+  fallbackRootPrefix: string
+) {
+  const incomingId = String(incoming.id || "").trim();
+  const incomingCode = String(incoming.code || "").trim();
+  const incomingRootId = String(incoming.rootId || "").trim();
+  const related = existingRecords
+    .filter((record) => record && typeof record === "object")
+    .filter((record) => matchesPresentationRevisionCandidate(record, incomingId, incomingCode, incomingRootId))
+    .sort(
+      (a, b) =>
+        presentationRevisionVersionValue(b) - presentationRevisionVersionValue(a) ||
+        presentationRevisionTimestampValue(b) - presentationRevisionTimestampValue(a)
+    );
+  const latest = related[0] || null;
+  const rootId = String(incomingRootId || (latest && (latest.rootId || latest.id || latest.recordId)) || incomingId || `${fallbackRootPrefix}_${Date.now()}`).trim();
+  const nextVersion = latest
+    ? Math.max(presentationRevisionVersionValue(latest), presentationRevisionVersionValue(incoming), 0) + 1
+    : Math.max(presentationRevisionVersionValue(incoming), 1);
+  const createdAt = String((latest && latest.createdAt) || incoming.createdAt || nowIso()).trim();
+  const previousId = String((latest && (latest.id || latest.recordId)) || incomingId || "").trim();
+  const nextId = latest ? `${rootId}_v${nextVersion}` : (incomingId || `${rootId}_v${nextVersion}`);
+  return {
+    id: nextId,
+    rootId,
+    previousId: previousId && previousId !== nextId ? previousId : "",
+    version: nextVersion,
+    createdAt
+  };
+}
+
+function normalizeReferenceList(item: Record<string, unknown>) {
+  if (Array.isArray(item.references) && item.references.length) {
+    return item.references.filter((entry) => entry && typeof entry === "object") as Array<Record<string, unknown>>;
+  }
+  if (item.reference && typeof item.reference === "object") {
+    return [item.reference as Record<string, unknown>];
+  }
+  return [];
+}
+
+function categoryBriefTemplates(category: string) {
+  const normalized = String(category || "").toLowerCase();
+  if (/(athleisure|activewear|sportswear|fitness|apparel|fashion)/i.test(normalized)) {
+    return [
+      {
+        title: "Performance Comfort Proof",
+        angle: "Performance + comfort without compromise",
+        hookPattern: "I stopped settling for activewear that looks good but fails once I start moving.",
+        offerFrame: "Everyday-to-training versatility with performance credibility",
+        formats: ["UGC demo", "Comparison carousel", "Founder/product walkthrough"]
+      },
+      {
+        title: "Fit Confidence Reset",
+        angle: "Confidence comes from fit proof, not aspiration-only imagery",
+        hookPattern: "The difference between pieces I wear once and the set I reach for every week.",
+        offerFrame: "Fit confidence, opacity, support, and consistency across body types",
+        formats: ["Try-on proof", "Body-shape testimonial", "Problem/solution short reel"]
+      }
+    ];
+  }
+  if (/(beauty|skincare|cosmetic)/i.test(normalized)) {
+    return [
+      {
+        title: "Routine Simplification Proof",
+        angle: "Reduce routine complexity while keeping visible outcomes",
+        hookPattern: "I cut my routine in half and my skin got better.",
+        offerFrame: "Visible outcome with lower effort and fewer steps",
+        formats: ["Routine breakdown", "Before/after diary", "Ingredient explainer"]
+      },
+      {
+        title: "Sensitive Skin Confidence",
+        angle: "Credibility for cautious buyers who fear irritation",
+        hookPattern: "I wanted results without the recovery period.",
+        offerFrame: "Gentle efficacy with trust-building proof",
+        formats: ["Testimonial montage", "Creator review", "Derm-style explainer"]
+      }
+    ];
+  }
+  return [
+    {
+      title: "Pain-to-Relief Proof",
+      angle: "Lead with the clearest recurring customer tension",
+      hookPattern: "I kept running into the same problem until I changed this one thing.",
+      offerFrame: "Reduce friction and make the next action obvious",
+      formats: ["UGC problem/solution", "Demo walkthrough", "Comparison testimonial"]
+    },
+    {
+      title: "Decision Confidence Stack",
+      angle: "Help the buyer justify switching or finally deciding",
+      hookPattern: "What finally convinced me this was worth trying.",
+      offerFrame: "Proof, reassurance, and objection handling",
+      formats: ["Proof-first static", "Review montage", "Founder answer format"]
+    }
+  ];
+}
+
+function synthesizeCreativeBriefs(input: {
+  workspaceId: string;
+  productId?: string;
+  selectedInsights: Array<Record<string, unknown>>;
+  personaItems: Array<Record<string, unknown>>;
+  pneCombos: Array<Record<string, unknown>>;
+  brandProfile?: Record<string, unknown> | null;
+  limit?: number;
+}) {
+  const brandProfile = (input.brandProfile && typeof input.brandProfile === "object" ? input.brandProfile : {}) as Record<string, unknown>;
+  const analysisJson =
+    brandProfile.analysisJson && typeof brandProfile.analysisJson === "object"
+      ? (brandProfile.analysisJson as Record<string, unknown>)
+      : {};
+  const brandGuidelines =
+    analysisJson.brandGuidelines && typeof analysisJson.brandGuidelines === "object"
+      ? (analysisJson.brandGuidelines as Record<string, unknown>)
+      : {};
+  const messagingPillars = Array.isArray(brandGuidelines.messagingPillars)
+    ? brandGuidelines.messagingPillars.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const proofPoints = Array.isArray(brandGuidelines.proofPoints)
+    ? brandGuidelines.proofPoints.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const ctaStyles = Array.isArray(brandGuidelines.ctaStyles)
+    ? brandGuidelines.ctaStyles.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const toneTraits = Array.isArray(brandGuidelines.toneTraits)
+    ? brandGuidelines.toneTraits.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const positioningSummary = String(brandGuidelines.positioningSummary || "").trim();
+  const brandKit =
+    analysisJson.brandKit && typeof analysisJson.brandKit === "object"
+      ? (analysisJson.brandKit as Record<string, unknown>)
+      : {};
+  const brandValueProps = Array.isArray(brandKit.valueProps)
+    ? brandKit.valueProps.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const visualSignals = Array.isArray(brandKit.visualSignals)
+    ? brandKit.visualSignals.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const category = String(brandProfile.category || "general").trim();
+  const brandName = String(brandProfile.companyName || brandProfile.brandName || "Brand").trim();
+  const targetAudience = String(brandProfile.targetAudience || "High-intent customers").trim();
+  const productsCatalog = Array.isArray(brandProfile.productsCatalog)
+    ? brandProfile.productsCatalog.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const productFocus = productsCatalog[0] || `${category} offer`;
+  const selectedInsights = input.selectedInsights
+    .map((item) => ({
+      id: String(item.id || item.insightKey || createHash("sha1").update(JSON.stringify(item)).digest("hex").slice(0, 8)),
+      insight: String(item.refinedInsight || item.insight || item.text || "").trim(),
+      mentionCount: Number(item.mentionCount || 0),
+      uniqueUserCount: Number(item.uniqueUserCount || 0),
+      references: normalizeReferenceList(item)
+    }))
+    .filter((item) => item.insight);
+  const personaItems = input.personaItems
+    .map((item, idx) => ({
+      id: String(item.id || `persona_${idx + 1}`),
+      persona: String(item.persona || "").trim(),
+      need: String(item.need || "").trim(),
+      emotion: String(item.emotion || "").trim(),
+      mentionCount: Number(item.mentionCount || 0),
+      uniqueUserCount: Number(item.uniqueUserCount || 0),
+      confidence: Number(item.confidence || 0)
+    }))
+    .filter((item) => item.persona || item.need || item.emotion);
+  const pneCombos = input.pneCombos
+    .map((item, idx) => ({
+      id: String(item.id || `pne_${idx + 1}`),
+      persona: String(item.persona || "").trim(),
+      need: String(item.need || "").trim(),
+      emotion: String(item.emotion || "").trim(),
+      angle: String(item.angle || "").trim(),
+      isPrimary: Boolean(item.isPrimary),
+      mentionCount: Number(item.mentionCount || 0),
+      uniqueUserCount: Number(item.uniqueUserCount || 0),
+      confidence: Number(item.confidence || 0)
+    }))
+    .filter((item) => item.persona || item.need || item.emotion);
+  const templates = categoryBriefTemplates(category);
+  const limit = Math.max(1, Math.min(templates.length, Number.isFinite(input.limit) ? Number(input.limit) : 2));
+  const topInsight = selectedInsights[0];
+  const topPersona = personaItems[0];
+  const rankedCombos = (pneCombos.length ? pneCombos : topPersona ? [{
+    id: topPersona.id,
+    persona: topPersona.persona,
+    need: topPersona.need,
+    emotion: topPersona.emotion,
+    angle: `${topPersona.need} -> ${topPersona.emotion}`,
+    isPrimary: true,
+    mentionCount: topPersona.mentionCount,
+    uniqueUserCount: topPersona.uniqueUserCount,
+    confidence: topPersona.confidence
+  }] : []).sort((a, b) => {
+    const scoreA = (a.isPrimary ? 100000 : 0) + (a.mentionCount || 0) * 3 + (a.uniqueUserCount || 0) * 2 + (a.confidence || 0) * 10;
+    const scoreB = (b.isPrimary ? 100000 : 0) + (b.mentionCount || 0) * 3 + (b.uniqueUserCount || 0) * 2 + (b.confidence || 0) * 10;
+    return scoreB - scoreA;
+  });
+
+  const briefs = templates.slice(0, limit).map((template, idx) => {
+    const combo = rankedCombos[idx % Math.max(rankedCombos.length, 1)] || null;
+    const personaLabel = combo?.persona || topPersona?.persona || targetAudience;
+    const needLabel = combo?.need || topPersona?.need || `confidence when buying ${productFocus}`;
+    const emotionLabel = combo?.emotion || topPersona?.emotion || "certainty";
+    const evidencePool = selectedInsights.slice(0, 3);
+    const totalMentions = evidencePool.reduce((sum, item) => sum + (item.mentionCount || 0), 0);
+    const totalUsers = evidencePool.reduce((sum, item) => sum + (item.uniqueUserCount || 0), 0);
+    const primaryInsight = evidencePool[0]?.insight || topInsight?.insight || `${personaLabel} is looking for ${needLabel} with more ${emotionLabel}.`;
+    const briefCode = `BRF-${String(category || "GEN").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "GEN"}-${String(idx + 1).padStart(2, "0")}`;
+    const strategyAngle = String(combo?.angle || template.angle || "").trim();
+    const hookOptions = [
+      template.hookPattern,
+      `${personaLabel} wants ${needLabel}, but most options increase doubt instead of reducing it.`,
+      `Why ${personaLabel.toLowerCase()} keeps rejecting ${productFocus} until they see this proof.`
+    ];
+    const formatSuggestions = Array.from(new Set([...(template.formats || []), "UGC testimonial", "Static proof card"])).slice(0, 4);
+    const proofStack = Array.from(new Set([...(proofPoints || []), ...(messagingPillars || []).slice(0, 2)])).slice(0, 4);
+    const objections = [
+      `Will ${productFocus} actually solve ${needLabel.toLowerCase()}?`,
+      `Can ${brandName} prove it is better than the alternatives already in rotation?`,
+      `Is the price justified by real-world repeat use?`
+    ];
+    const ctas = Array.from(new Set([...(ctaStyles || []), "Shop the proof set", "See why customers switch"])).slice(0, 4);
+    const references = evidencePool.flatMap((item) =>
+      item.references.map((reference) => ({
+        title: String(reference.title || reference.sourceTitle || item.insight.slice(0, 72)),
+        url: String(reference.url || reference.sourceUrl || "#"),
+        subreddit: String(reference.subreddit || item.references[0]?.subreddit || "reddit"),
+        author: reference.author ? String(reference.author) : undefined,
+        score: Number(reference.score || 0)
+      }))
+    );
+    return {
+      id: `${briefCode.toLowerCase()}_${Date.now()}_${idx + 1}`,
+      code: briefCode,
+      version: idx + 1,
+      title: template.title,
+      category,
+      objective: "Create a production-ready performance marketing direction",
+      audience: personaLabel,
+      angle: strategyAngle,
+      insightCore: primaryInsight,
+      targetMoment: `${personaLabel} is evaluating ${productFocus} and needs proof that resolves ${needLabel.toLowerCase()} without increasing ${emotionLabel.toLowerCase()}.`,
+      hook: hookOptions[0],
+      hookOptions,
+      audienceFraming: `${personaLabel} needs a message that acknowledges ${needLabel.toLowerCase()} and replaces ${emotionLabel.toLowerCase()} with clarity.`,
+      offerFrame: template.offerFrame,
+      proofPoints: proofStack.length ? proofStack : [`Evidence from customer research should anchor the claim about ${needLabel.toLowerCase()}.`],
+      objections,
+      ctas,
+      formatSuggestions,
+      tone: toneTraits.length ? toneTraits.join(" · ") : "direct · credible · conversion-aware",
+      successMetrics: {
+        hookHoldTarget: ">4s",
+        ctrTarget: "1.5%+",
+        cvrTarget: "2.5%+",
+        roasTarget: "3.0x+"
+      },
+      brandContext: {
+        companyName: brandName,
+        category,
+        targetAudience,
+        productFocus,
+        productsCatalog: productsCatalog.slice(0, 6),
+        valueProps: brandValueProps.slice(0, 6),
+        messagingPillars: messagingPillars.slice(0, 6),
+        toneTraits: toneTraits.slice(0, 6),
+        proofPoints: proofPoints.slice(0, 6),
+        visualSignals: visualSignals.slice(0, 6),
+        positioningSummary
+      },
+      customerSummary: {
+        leadPersona: personaLabel,
+        leadNeed: needLabel,
+        leadEmotion: emotionLabel,
+        leadAngle: strategyAngle,
+        primaryPneId: String(combo?.id || "").trim(),
+        supportingInsightCount: evidencePool.length,
+        supportingReferenceCount: references.length
+      },
+      sourceSummary: {
+        selectedInsightCount: evidencePool.length,
+        mentionCount: totalMentions,
+        uniqueUserCount: totalUsers,
+        personaCount: personaItems.length,
+        pneCount: rankedCombos.length,
+        activePneId: String(combo?.id || "").trim()
+      },
+      sourceRefs: {
+        selectedInsightIds: evidencePool.map((item) => item.id).filter(Boolean),
+        personaIds: combo?.id ? [combo.id] : topPersona?.id ? [topPersona.id] : [],
+        pneIds: combo?.id ? [combo.id] : []
+      },
+      references,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      productId: input.productId || undefined,
+      autoDerivedFromCustomer: true,
+      localFallback: false
+    };
+  });
+
+  return {
+    brandProfile: {
+      companyName: brandName,
+      brandUrl: String(brandProfile.brandUrl || ""),
+      category,
+      targetAudience,
+      productsCatalog
+    },
+    sourceState: {
+      selectedInsightCount: selectedInsights.length,
+      personaCount: personaItems.length,
+      pneCount: rankedCombos.length
+    },
+    briefs
+  };
+}
+
+function sceneDurationPattern(format: string) {
+  const normalized = String(format || "").toLowerCase();
+  if (normalized.includes("carousel")) return [3, 4, 4, 4, 3];
+  if (normalized.includes("static")) return [2, 3, 3, 3, 2];
+  return [2, 3, 4, 4, 3];
+}
+
+function buildStoryboardScenes(input: {
+  brief: Record<string, unknown>;
+  format: string;
+  hook: string;
+  voiceoverLines: string[];
+}) {
+  const pattern = sceneDurationPattern(input.format);
+  const audience = String(input.brief.audience || "buyer");
+  const angle = String(input.brief.angle || "angle");
+  const proofPoints = Array.isArray(input.brief.proofPoints)
+    ? input.brief.proofPoints.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const objections = Array.isArray(input.brief.objections)
+    ? input.brief.objections.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const overlays = [
+    "Problem-first hook",
+    "What buyers keep running into",
+    proofPoints[0] || "Real proof point",
+    objections[0] || "Objection resolved",
+    "CTA / next action"
+  ];
+  const visuals = [
+    `Open on ${audience.toLowerCase()} in a real-use moment with immediate friction visible`,
+    `Show the pain pattern or failed alternative tied to ${angle.toLowerCase()}`,
+    "Demonstrate the product solving the exact use case with close-up proof",
+    "Layer social proof, review language, or comparison evidence on screen",
+    "End with product + offer framing + clear CTA"
+  ];
+  const shotIntents = [
+    "Thumb-stop interruption",
+    "Relatable problem articulation",
+    "Proof demonstration",
+    "Trust + objection handling",
+    "Decision push"
+  ];
+  const transitions = ["Hard cut", "Match cut", "Zoom detail", "Text-led cut", "End card hold"];
+  return pattern.map((durationSec, idx) => ({
+    index: idx + 1,
+    beat: shotIntents[idx],
+    durationSec,
+    shotIntent: shotIntents[idx],
+    visualCue: visuals[idx],
+    overlay: overlays[idx],
+    voiceoverLine: input.voiceoverLines[idx] || input.voiceoverLines[input.voiceoverLines.length - 1] || "",
+    transition: transitions[idx]
+  }));
+}
+
+function synthesizeStoryboards(input: {
+  workspaceId: string;
+  productId?: string;
+  briefs: Array<Record<string, unknown>>;
+  brandProfile?: Record<string, unknown> | null;
+  limit?: number;
+}) {
+  const brandProfile = (input.brandProfile && typeof input.brandProfile === "object" ? input.brandProfile : {}) as Record<string, unknown>;
+  const category = String(brandProfile.category || "general").trim();
+  const companyName = String(brandProfile.companyName || brandProfile.brandName || "Brand").trim();
+  const limit = Math.max(1, Math.min(3, Number.isFinite(input.limit) ? Number(input.limit) : 2));
+  const briefVariants = input.briefs.filter((brief) => brief && typeof brief === "object").slice(0, Math.max(limit, 1));
+  const defaultFormats = ["UGC reel", "Problem/solution short", "Testimonial proof cut"];
+  const storyboards = briefVariants.slice(0, limit).map((brief, idx) => {
+    const formatSuggestions = Array.isArray(brief.formatSuggestions)
+      ? brief.formatSuggestions.map((value) => String(value || "").trim()).filter(Boolean)
+      : [];
+    const chosenFormat = formatSuggestions[0] || defaultFormats[idx % defaultFormats.length];
+    const hook = String(brief.hook || "").trim() || "Open with the buyer problem immediately.";
+    const audience = String(brief.audience || "buyer");
+    const angle = String(brief.angle || "conversion angle");
+    const targetMoment = String(brief.targetMoment || "");
+    const proofPoints = Array.isArray(brief.proofPoints)
+      ? brief.proofPoints.map((value) => String(value || "").trim()).filter(Boolean)
+      : [];
+    const objections = Array.isArray(brief.objections)
+      ? brief.objections.map((value) => String(value || "").trim()).filter(Boolean)
+      : [];
+    const ctas = Array.isArray(brief.ctas) ? brief.ctas.map((value) => String(value || "").trim()).filter(Boolean) : [];
+    const references = Array.isArray(brief.references) ? brief.references : [];
+    const voiceoverLines = [
+      hook,
+      `${audience} is trying to solve ${String(brief.offerFrame || angle).toLowerCase()} without creating more doubt.`,
+      proofPoints[0] || `Show exactly how ${companyName} resolves the real use case.`,
+      objections[0] || "Answer the biggest hesitation directly with evidence.",
+      ctas[0] || "Show the next action and why now is the right time."
+    ];
+    const scenes = buildStoryboardScenes({ brief, format: chosenFormat, hook, voiceoverLines });
+    const totalDurationSec = scenes.reduce((sum, scene) => sum + Number(scene.durationSec || 0), 0);
+    const storyboardCode = `SB-${String(category || "GEN").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "GEN"}-${String(idx + 1).padStart(2, "0")}`;
+    return {
+      id: `${storyboardCode.toLowerCase()}_${Date.now()}_${idx + 1}`,
+      code: storyboardCode,
+      version: idx + 1,
+      briefId: String(brief.id || ""),
+      briefCode: String(brief.code || ""),
+      title: `${String(brief.title || "Creative Brief")} Storyboard`,
+      format: chosenFormat,
+      audience,
+      angle,
+      objective: "Translate the brief into a generation-ready scene plan",
+      targetMoment,
+      hook,
+      pacing: totalDurationSec <= 12 ? "fast" : totalDurationSec <= 18 ? "medium" : "deliberate",
+      totalDurationSec,
+      scenes,
+      script: {
+        opening: voiceoverLines[0],
+        body: voiceoverLines.slice(1, -1),
+        closing: voiceoverLines[voiceoverLines.length - 1],
+        fullVoiceover: voiceoverLines.join(" "),
+        overlays: scenes.map((scene) => scene.overlay)
+      },
+      audioDirection: {
+        voiceoverTone: "credible, direct, fast-moving",
+        musicMood: "energetic with clean build",
+        sfxNotes: ["first beat hit on hook", "soft whoosh between proof and objection", "clean end-card resolve"]
+      },
+      generationReady: {
+        templateHint: chosenFormat,
+        promptSummary: `${companyName} ${chosenFormat} for ${audience}. Lead with ${hook}. Resolve ${String(
+          brief.offerFrame || angle
+        ).toLowerCase()} with proof and end on ${ctas[0] || "clear CTA"}.`,
+        scenePlan: scenes.map((scene) => `${scene.index}. ${scene.shotIntent} - ${scene.visualCue}`).join(" | ")
+      },
+      brandContext: {
+        companyName: String((brief.brandContext as Record<string, unknown> | undefined)?.companyName || companyName).trim(),
+        category: String((brief.brandContext as Record<string, unknown> | undefined)?.category || category).trim(),
+        targetAudience: String((brief.brandContext as Record<string, unknown> | undefined)?.targetAudience || brandProfile.targetAudience || "").trim(),
+        productFocus: String((brief.brandContext as Record<string, unknown> | undefined)?.productFocus || "").trim(),
+        productsCatalog: Array.isArray((brief.brandContext as Record<string, unknown> | undefined)?.productsCatalog)
+          ? (((brief.brandContext as Record<string, unknown>).productsCatalog as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 12))
+          : [],
+        valueProps: Array.isArray((brief.brandContext as Record<string, unknown> | undefined)?.valueProps)
+          ? (((brief.brandContext as Record<string, unknown>).valueProps as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 12))
+          : [],
+        messagingPillars: Array.isArray((brief.brandContext as Record<string, unknown> | undefined)?.messagingPillars)
+          ? (((brief.brandContext as Record<string, unknown>).messagingPillars as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 12))
+          : [],
+        toneTraits: Array.isArray((brief.brandContext as Record<string, unknown> | undefined)?.toneTraits)
+          ? (((brief.brandContext as Record<string, unknown>).toneTraits as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 12))
+          : [],
+        proofPoints: Array.isArray((brief.brandContext as Record<string, unknown> | undefined)?.proofPoints)
+          ? (((brief.brandContext as Record<string, unknown>).proofPoints as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 12))
+          : [],
+        visualSignals: Array.isArray((brief.brandContext as Record<string, unknown> | undefined)?.visualSignals)
+          ? (((brief.brandContext as Record<string, unknown>).visualSignals as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 12))
+          : [],
+        positioningSummary: String((brief.brandContext as Record<string, unknown> | undefined)?.positioningSummary || "").trim()
+      },
+      customerSummary: {
+        leadPersona: String((brief.customerSummary as Record<string, unknown> | undefined)?.leadPersona || audience).trim(),
+        leadNeed: String((brief.customerSummary as Record<string, unknown> | undefined)?.leadNeed || "").trim(),
+        leadEmotion: String((brief.customerSummary as Record<string, unknown> | undefined)?.leadEmotion || "").trim(),
+        leadAngle: String((brief.customerSummary as Record<string, unknown> | undefined)?.leadAngle || angle).trim(),
+        primaryPneId: String((brief.customerSummary as Record<string, unknown> | undefined)?.primaryPneId || "").trim()
+      },
+      sourceSummary: {
+        briefCode: String(brief.code || ""),
+        proofPointCount: proofPoints.length,
+        objectionCount: objections.length,
+        referenceCount: references.length,
+        activePneId: String((brief.customerSummary as Record<string, unknown> | undefined)?.primaryPneId || "").trim()
+      },
+      sourceRefs: {
+        selectedInsightIds: Array.isArray((brief.sourceRefs as Record<string, unknown> | undefined)?.selectedInsightIds)
+          ? (((brief.sourceRefs as Record<string, unknown>).selectedInsightIds as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 24))
+          : [],
+        personaIds: Array.isArray((brief.sourceRefs as Record<string, unknown> | undefined)?.personaIds)
+          ? (((brief.sourceRefs as Record<string, unknown>).personaIds as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 24))
+          : [],
+        pneIds: Array.isArray((brief.sourceRefs as Record<string, unknown> | undefined)?.pneIds)
+          ? (((brief.sourceRefs as Record<string, unknown>).pneIds as Array<unknown>).map((value) => String(value || "").trim()).filter(Boolean).slice(0, 24))
+          : []
+      },
+      references,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      productId: input.productId || undefined,
+      autoDerivedFromCustomer: true,
+      localFallback: false
+    };
+  });
+  return {
+    brandProfile: {
+      companyName,
+      category,
+      brandUrl: String(brandProfile.brandUrl || "")
+    },
+    briefCount: briefVariants.length,
+    storyboards
+  };
+}
+
+function buildPresentationBriefState(workspaceId: string, productId?: string) {
+  const customerState = buildCustomerBrainPneState(workspaceId, productId);
+  const brandProfile = getWorkspaceBrandProfile(workspaceId);
+  const savedBriefs = listBriefLibraryRecords(workspaceId, 18, productId);
+  const preferredSavedBriefs = preferExplicitPresentationArtifacts(savedBriefs);
+  const briefs = preferredSavedBriefs.length
+    ? preferredSavedBriefs
+    : synthesizeCreativeBriefs({
+        workspaceId,
+        productId,
+        selectedInsights: Array.isArray(customerState.selectedInsights) ? customerState.selectedInsights : [],
+        personaItems: Array.isArray(customerState.personaItems) ? customerState.personaItems : [],
+        pneCombos: Array.isArray(customerState.pneCombos) ? customerState.pneCombos : [],
+        brandProfile,
+        limit: 2
+      }).briefs;
+  return {
+    brandProfile,
+    selectedInsights: customerState.selectedInsights,
+    personaItems: customerState.personaItems,
+    pneCombos: customerState.pneCombos,
+    briefs,
+    latestBrief: briefs[0] || null,
+    autoDerivedFromCustomer: preferredSavedBriefs.length === 0 && briefs.length > 0
+  };
+}
+
+function buildPresentationStoryboardState(workspaceId: string, productId?: string) {
+  const briefState = buildPresentationBriefState(workspaceId, productId);
+  const savedStoryboards = listStoryboardLibraryRecords(workspaceId, 18, productId);
+  const preferredSavedStoryboards = preferExplicitPresentationArtifacts(savedStoryboards);
+  const storyboards = preferredSavedStoryboards.length
+    ? preferredSavedStoryboards
+    : synthesizeStoryboards({
+        workspaceId,
+        productId,
+        briefs: Array.isArray(briefState.briefs) ? (briefState.briefs as Array<Record<string, unknown>>) : [],
+        brandProfile: briefState.brandProfile as Record<string, unknown> | null | undefined,
+        limit: 2
+      }).storyboards;
+  return {
+    ...briefState,
+    storyboards,
+    latestStoryboard: storyboards[0] || null,
+    autoDerivedFromCustomer: preferredSavedStoryboards.length === 0 && storyboards.length > 0
+  };
+}
+
+function buildGenerationStrategyPacket(workspaceId: string, productId?: string) {
+  const brandProfile = getWorkspaceBrandProfile(workspaceId);
+  const briefState = buildPresentationBriefState(workspaceId, productId);
+  const storyboardState = buildPresentationStoryboardState(workspaceId, productId);
+  return {
+    brandProfile: brandProfile || null,
+    latestBrief: briefState.latestBrief || null,
+    latestStoryboard: storyboardState.latestStoryboard || null,
+    briefCount: Array.isArray(briefState.briefs) ? briefState.briefs.length : 0,
+    storyboardCount: Array.isArray(storyboardState.storyboards) ? storyboardState.storyboards.length : 0
+  };
+}
+
+function isReplaceablePresentationArtifact(record: Record<string, unknown> | null | undefined) {
+  if (!record || typeof record !== "object") return false;
+  return record.autoDerivedFromCustomer === true || record.bootstrapSeeded === true || record.localFallback === true;
+}
+
+function preferExplicitPresentationArtifacts(records: Array<Record<string, unknown>>) {
+  const list = Array.isArray(records) ? records.filter((record) => record && typeof record === "object") : [];
+  const explicit = list.filter((record) => !isReplaceablePresentationArtifact(record));
+  return explicit.length ? explicit : list;
+}
+
+function buildCustomerPresentationDerivationKey(input: {
+  workspaceId: string;
+  productId?: string;
+  brandProfile: Record<string, unknown>;
+  customerState: ReturnType<typeof buildCustomerBrainPneState>;
+}) {
+  const selectedInsights = Array.isArray(input.customerState.selectedInsights)
+    ? input.customerState.selectedInsights.map((item) => ({
+        id: String(item.id || item.insightKey || "").trim(),
+        insight: String(item.refinedInsight || item.insight || item.text || "").trim(),
+        mentionCount: Number(item.mentionCount || 0) || 0,
+        uniqueUserCount: Number(item.uniqueUserCount || 0) || 0
+      }))
+    : [];
+  const personaItems = Array.isArray(input.customerState.personaItems)
+    ? input.customerState.personaItems.map((item) => ({
+        id: String(item.id || "").trim(),
+        persona: String(item.persona || "").trim(),
+        need: String(item.need || "").trim(),
+        emotion: String(item.emotion || "").trim(),
+        whyItMatters: String(item.whyItMatters || "").trim()
+      }))
+    : [];
+  const pneCombos = Array.isArray(input.customerState.pneCombos)
+    ? input.customerState.pneCombos.map((item) => ({
+        id: String(item.id || "").trim(),
+        persona: String(item.persona || "").trim(),
+        need: String(item.need || "").trim(),
+        emotion: String(item.emotion || "").trim(),
+        angle: String(item.angle || "").trim(),
+        isPrimary: item.isPrimary === true
+      }))
+    : [];
+  return createHash("sha1")
+    .update(
+      JSON.stringify({
+        workspaceId: input.workspaceId,
+        productId: String(input.productId || "").trim(),
+        brand: {
+          companyName: String(input.brandProfile.companyName || "").trim(),
+          category: String(input.brandProfile.category || "").trim(),
+          targetAudience: String(input.brandProfile.targetAudience || "").trim(),
+          productsCatalog: Array.isArray(input.brandProfile.productsCatalog)
+            ? input.brandProfile.productsCatalog.map((entry) => String(entry || "").trim()).filter(Boolean).slice(0, 12)
+            : []
+        },
+        selectedInsights,
+        personaItems,
+        pneCombos,
+        meta: input.customerState.meta && typeof input.customerState.meta === "object" ? input.customerState.meta : {}
+      })
+    )
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function stableAutoArtifactRoot(prefix: string, workspaceId: string, productId: string | undefined, slot: number) {
+  const scope = `${workspaceId}_${String(productId || "default").trim() || "default"}_${slot}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return `${prefix}_${scope || `default_${slot}`}`;
+}
+
+function persistAutoDerivedPresentationArtifacts(workspaceId: string, productId?: string, sourceNodeId = "customer") {
+  const brandProfile = getWorkspaceBrandProfile(workspaceId);
+  if (!brandProfile) return { skipped: true as const, reason: "brand_profile_missing" as const };
+  const customerState = buildCustomerBrainPneState(workspaceId, productId);
+  const selectedInsights = Array.isArray(customerState.selectedInsights) ? customerState.selectedInsights : [];
+  const personaItems = Array.isArray(customerState.personaItems) ? customerState.personaItems : [];
+  const pneCombos = Array.isArray(customerState.pneCombos) ? customerState.pneCombos : [];
+  if (!selectedInsights.length || !personaItems.length || !pneCombos.length) {
+    return { skipped: true as const, reason: "customer_state_incomplete" as const };
+  }
+  const existingBriefs = listBriefLibraryRecords(workspaceId, 80, productId);
+  const existingStoryboards = listStoryboardLibraryRecords(workspaceId, 80, productId);
+  const hasExplicitBrief = existingBriefs.some((record) => !isReplaceablePresentationArtifact(record));
+  const hasExplicitStoryboard = existingStoryboards.some((record) => !isReplaceablePresentationArtifact(record));
+  if (hasExplicitBrief || hasExplicitStoryboard) {
+    return { skipped: true as const, reason: "explicit_presentation_exists" as const };
+  }
+  const derivationKey = buildCustomerPresentationDerivationKey({ workspaceId, productId, brandProfile, customerState });
+  const latestBrief = existingBriefs[0] || null;
+  const latestStoryboard = existingStoryboards[0] || null;
+  if (
+    latestBrief &&
+    latestStoryboard &&
+    String(latestBrief.derivationKey || "").trim() === derivationKey &&
+    String(latestStoryboard.derivationKey || "").trim() === derivationKey
+  ) {
+    return { skipped: true as const, reason: "derivation_unchanged" as const, derivationKey };
+  }
+  const timestamp = nowIso();
+  const briefResult = synthesizeCreativeBriefs({
+    workspaceId,
+    productId,
+    nodeId: sourceNodeId,
+    selectedInsights,
+    personaItems,
+    pneCombos,
+    brandProfile,
+    limit: 2
+  });
+  const preparedBriefs = briefResult.briefs.map((brief, idx) => {
+    const rootId = stableAutoArtifactRoot("brief_auto", workspaceId, productId, idx + 1);
+    const autoCode = `${String(brief.code || `BRF-AUTO-${idx + 1}`).trim() || `BRF-AUTO-${idx + 1}`}-AUTO`;
+    const revision = buildNextPresentationArtifactRevision(existingBriefs, { ...brief, id: rootId, rootId, code: autoCode }, "brief_auto");
+    return {
+      ...brief,
+      id: revision.id,
+      rootId: revision.rootId,
+      previousId: revision.previousId || undefined,
+      version: revision.version,
+      code: autoCode,
+      createdAt: revision.createdAt,
+      updatedAt: timestamp,
+      autoDerivedFromCustomer: true,
+      derivationKey,
+      productId: productId || undefined
+    } as Record<string, unknown>;
+  });
+  preparedBriefs.forEach((brief) =>
+    addDataStoreRecord("db_briefs_library", workspaceId, sourceNodeId, productId, {
+      ...brief,
+      storedAt: timestamp
+    })
+  );
+  const storyboardResult = synthesizeStoryboards({
+    workspaceId,
+    productId,
+    nodeId: "storyboard",
+    briefs: preparedBriefs,
+    brandProfile,
+    limit: 2
+  });
+  const preparedStoryboards = storyboardResult.storyboards.map((storyboard, idx) => {
+    const rootId = stableAutoArtifactRoot("storyboard_auto", workspaceId, productId, idx + 1);
+    const autoCode = `${String(storyboard.code || `SB-AUTO-${idx + 1}`).trim() || `SB-AUTO-${idx + 1}`}-AUTO`;
+    const revision = buildNextPresentationArtifactRevision(
+      existingStoryboards,
+      { ...storyboard, id: rootId, rootId, code: autoCode },
+      "storyboard_auto"
+    );
+    return {
+      ...storyboard,
+      id: revision.id,
+      rootId: revision.rootId,
+      previousId: revision.previousId || undefined,
+      version: revision.version,
+      code: autoCode,
+      createdAt: revision.createdAt,
+      updatedAt: timestamp,
+      autoDerivedFromCustomer: true,
+      derivationKey,
+      productId: productId || undefined
+    } as Record<string, unknown>;
+  });
+  preparedStoryboards.forEach((storyboard) => {
+    addDataStoreRecord("db_storyboard_library", workspaceId, "storyboard", productId, {
+      ...storyboard,
+      storedAt: timestamp
+    });
+    addDataStoreRecord("db_scripts_library", workspaceId, "storyboard", productId, {
+      storyboardId: String(storyboard.id || "").trim(),
+      storyboardCode: String(storyboard.code || "").trim(),
+      briefId: String(storyboard.briefId || "").trim(),
+      briefCode: String(storyboard.briefCode || "").trim(),
+      title: String(storyboard.title || "").trim(),
+      format: String(storyboard.format || "").trim(),
+      script: isPlainObject(storyboard.script) ? (storyboard.script as Record<string, unknown>) : {},
+      audioDirection: isPlainObject(storyboard.audioDirection) ? (storyboard.audioDirection as Record<string, unknown>) : {},
+      createdAt: String(storyboard.createdAt || "").trim(),
+      storedAt: timestamp
+    });
+  });
+  return {
+    skipped: false as const,
+    derivationKey,
+    briefs: preparedBriefs,
+    storyboards: preparedStoryboards
+  };
+}
+
+function compileStructuredGenerationPrompt(packet: ReturnType<typeof buildGenerationStrategyPacket>) {
+  const brandProfile = isPlainObject(packet.brandProfile) ? packet.brandProfile : {};
+  const brief = isPlainObject(packet.latestBrief) ? packet.latestBrief : {};
+  const storyboard = isPlainObject(packet.latestStoryboard) ? packet.latestStoryboard : {};
+  const proofPoints = Array.isArray(brief.proofPoints)
+    ? brief.proofPoints.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const scenes = Array.isArray(storyboard.scenes)
+    ? storyboard.scenes
+        .map((scene: any) => `${scene.index || "?"}. ${String(scene.shotIntent || scene.beat || "").trim()} - ${String(scene.visualCue || "").trim()}`.trim())
+        .filter(Boolean)
+    : [];
+  return [
+    String(brandProfile.companyName || "").trim() ? `Brand: ${String(brandProfile.companyName).trim()}` : "",
+    String(brandProfile.category || "").trim() ? `Category: ${String(brandProfile.category).trim()}` : "",
+    String(brief.audience || "").trim() ? `Audience: ${String(brief.audience).trim()}` : "",
+    String(brief.angle || "").trim() ? `Angle: ${String(brief.angle).trim()}` : "",
+    String(brief.insightCore || "").trim() ? `Core insight: ${String(brief.insightCore).trim()}` : "",
+    proofPoints.length ? `Proof points: ${proofPoints.join(" | ")}` : "",
+    String(storyboard.hook || brief.hook || "").trim() ? `Hook: ${String(storyboard.hook || brief.hook).trim()}` : "",
+    scenes.length ? `Scene plan: ${scenes.join(" || ")}` : "",
+    String(storyboard.script && (storyboard.script as Record<string, unknown>).fullVoiceover || "").trim()
+      ? `Voiceover: ${String((storyboard.script as Record<string, unknown>).fullVoiceover || "").trim()}`
+      : ""
+  ].filter(Boolean).join("\n");
+}
+
+function upsertCustomerBrainState(input: {
+  workspaceId: string;
+  productId: string;
+  nodeId?: string;
+  selectedInsights?: Array<Record<string, unknown>>;
+  personaItems?: Array<Record<string, unknown>>;
+  pneCombos?: Array<Record<string, unknown>>;
+  selectionMode?: string;
+  meta?: Record<string, unknown>;
+}) {
+  const existing = getCustomerBrainState(input.workspaceId, input.productId, input.nodeId || "customer");
+  const next = {
+    workspaceId: input.workspaceId,
+    productId: input.productId,
+    nodeId: input.nodeId || "customer",
+    selectedInsights: Array.isArray(input.selectedInsights) ? input.selectedInsights : existing.selectedInsights,
+    personaItems: Array.isArray(input.personaItems) ? input.personaItems : existing.personaItems,
+    pneCombos: Array.isArray(input.pneCombos) ? input.pneCombos : existing.pneCombos,
+    selectionMode: String(input.selectionMode || existing.selectionMode || "none"),
+    meta: { ...(existing.meta || {}), ...((input.meta && typeof input.meta === "object") ? input.meta : {}) },
+    updatedAt: nowIso()
+  };
+  upsertCustomerBrainStateStmt.run(
+    next.workspaceId,
+    next.productId,
+    next.nodeId,
+    JSON.stringify(next.selectedInsights || []),
+    JSON.stringify(next.personaItems || []),
+    JSON.stringify(next.pneCombos || []),
+    next.selectionMode,
+    JSON.stringify(next.meta || {}),
+    next.updatedAt
+  );
+  return getCustomerBrainState(next.workspaceId, next.productId, next.nodeId);
+}
+
+function createCustomerStrategyRun(input: {
+  workspaceId: string;
+  productId: string;
+  kind: "persona" | "pne";
+  batchId: string;
+  runAt?: string;
+  summary: string;
+  countLabel: string;
+  sourceLabel: string;
+  rows: Array<Record<string, unknown>>;
+  meta?: Record<string, unknown>;
+}) {
+  const record = {
+    id: newId("csr"),
+    workspaceId: String(input.workspaceId || "").trim(),
+    productId: String(input.productId || "").trim(),
+    kind: input.kind,
+    batchId: String(input.batchId || "").trim(),
+    runAt: String(input.runAt || nowIso()).trim() || nowIso(),
+    summary: String(input.summary || "").trim(),
+    countLabel: String(input.countLabel || "").trim(),
+    sourceLabel: String(input.sourceLabel || "").trim(),
+    rows: Array.isArray(input.rows) ? input.rows : [],
+    meta: isPlainObject(input.meta) ? input.meta : {}
+  };
+  insertCustomerStrategyRunStmt.run(
+    record.id,
+    record.workspaceId,
+    record.productId,
+    record.kind,
+    record.batchId,
+    record.runAt,
+    record.summary,
+    record.countLabel,
+    record.sourceLabel,
+    JSON.stringify(record.rows),
+    JSON.stringify(record.meta)
+  );
+  return record;
+}
+
+function parseCustomerStrategyRunRow(row: {
+  id: string;
+  workspaceId: string;
+  productId: string;
+  kind: "persona" | "pne";
+  batchId: string;
+  runAt: string;
+  summary: string;
+  countLabel: string;
+  sourceLabel: string;
+  rowsJson: string;
+  metaJson: string;
+}) {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    productId: row.productId,
+    kind: row.kind,
+    batchId: row.batchId,
+    runAt: row.runAt,
+    summary: row.summary,
+    countLabel: row.countLabel,
+    sourceLabel: row.sourceLabel,
+    items: row.kind === "persona" ? parseJsonArray(row.rowsJson) : undefined,
+    pneCombos: row.kind === "pne" ? withNormalizedPrimaryPneRows(parseJsonArray(row.rowsJson) as Array<Record<string, unknown>>) : undefined,
+    meta: parseJsonObject(row.metaJson)
+  };
+}
+
+function listCustomerStrategyRuns(workspaceId: string, productId: string, kind: "persona" | "pne", limit = 12) {
+  const rows = readRecentCustomerStrategyRunsStmt.all(
+    workspaceId,
+    productId,
+    kind,
+    Math.max(1, Math.min(200, Math.floor(limit)))
+  ) as Array<{
+    id: string;
+    workspaceId: string;
+    productId: string;
+    kind: "persona" | "pne";
+    batchId: string;
+    runAt: string;
+    summary: string;
+    countLabel: string;
+    sourceLabel: string;
+    rowsJson: string;
+    metaJson: string;
+  }>;
+  return rows.map((row) => parseCustomerStrategyRunRow(row));
+}
+
+function getCustomerStrategyRunByBatch(workspaceId: string, productId: string, kind: "persona" | "pne", batchId: string) {
+  const row = readCustomerStrategyRunByBatchStmt.get(workspaceId, productId, kind, batchId) as
+    | {
+        id: string;
+        workspaceId: string;
+        productId: string;
+        kind: "persona" | "pne";
+        batchId: string;
+        runAt: string;
+        summary: string;
+        countLabel: string;
+        sourceLabel: string;
+        rowsJson: string;
+        metaJson: string;
+      }
+    | undefined;
+  return row ? parseCustomerStrategyRunRow(row) : null;
+}
+
 function normalizeSettings(raw: unknown): DesktopSettings {
   const candidate = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const entitlement = (candidate.entitlement && typeof candidate.entitlement === "object"
@@ -1114,6 +3156,7 @@ function normalizeSettings(raw: unknown): DesktopSettings {
       openaiApiKey: String(keys.openaiApiKey || ""),
       anthropicApiKey: String(keys.anthropicApiKey || ""),
       customAgentApiKey: String(keys.customAgentApiKey || ""),
+      apifyApiKey: String(keys.apifyApiKey || ""),
       elevenlabsApiKey: String(keys.elevenlabsApiKey || ""),
       comfyApiBase: String(keys.comfyApiBase || ""),
       comfyApiKey: String(keys.comfyApiKey || "")
@@ -1369,6 +3412,128 @@ async function canUseAgenticFeatures(settings: DesktopSettings): Promise<boolean
   if (hasAgentByok(settings)) return true;
   if (settings.entitlement.mode !== "pro") return false;
   return verifyProToken(settings.entitlement.openflowToken);
+}
+
+function cloneCanvasDoc<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function slugifyWorkflowName(value: string) {
+  return String(value || "workflow")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "workflow";
+}
+
+function workflowCode(value: string) {
+  return `WF-${slugifyWorkflowName(value).slice(0, 16).toUpperCase()}`;
+}
+
+function generationCode(runId: string) {
+  const normalized = String(runId || "").replace(/[^a-z0-9]+/gi, "").toUpperCase();
+  return `GEN-${normalized.slice(-12) || "RUN"}`;
+}
+
+function nodeUiState(node: CanvasNode) {
+  const config = node.config && typeof node.config === "object" ? node.config : ({ workflowRef: "" } as GenerationNodeConfig);
+  const uiState =
+    config.uiState && typeof config.uiState === "object"
+      ? (config.uiState as Record<string, unknown>)
+      : {};
+  return { config, uiState };
+}
+
+function artifactRunSignature(row: unknown) {
+  if (!row || typeof row !== "object") return "";
+  const candidate = row as Record<string, unknown>;
+  const data = candidate.data && typeof candidate.data === "object" ? (candidate.data as Record<string, unknown>) : {};
+  const step = data.step && typeof data.step === "object" ? (data.step as Record<string, unknown>) : {};
+  const stepId = String(step.id || "").trim();
+  if (stepId) return `step:${stepId}`;
+  return [
+    String(candidate.wfCode || "").trim(),
+    String(candidate.genCode || "").trim(),
+    String(candidate.summary || "").trim()
+  ]
+    .filter(Boolean)
+    .join("::");
+}
+
+function upsertUiRunRow(node: CanvasNode, runRow: Record<string, unknown>, limit = 12) {
+  const { config, uiState } = nodeUiState(node);
+  const existingRows = Array.isArray(uiState.runs) ? [...uiState.runs] : [];
+  uiState.runs = [runRow, ...existingRows.filter((row) => artifactRunSignature(row) !== artifactRunSignature(runRow))].slice(0, limit);
+  node.config = {
+    ...config,
+    uiState
+  };
+}
+
+function persistGenerationArtifactsToCanvasDoc(args: {
+  doc: CanvasDocument;
+  runId: string;
+  stepId: string;
+  nodeId: string;
+  artifacts: GenerationArtifact[];
+  timestampLabel?: string;
+}) {
+  const { doc, runId, stepId, nodeId, artifacts } = args;
+  if (!doc || !Array.isArray(doc.nodes) || !artifacts.length) return { changed: false, doc };
+  const nextDoc = cloneCanvasDoc(doc);
+  const targetNode = nextDoc.nodes.find((node) => String(node.id || "") === String(nodeId || ""));
+  const assetNode = nextDoc.nodes.find((node) => String(node.id || "") === "assetgen");
+  if (!targetNode) return { changed: false, doc };
+  const stamp = String(args.timestampLabel || "").trim() || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const primary = artifacts[0];
+  const metadata = primary && primary.metadata && typeof primary.metadata === "object"
+    ? (primary.metadata as Record<string, unknown>)
+    : {};
+  const workflowRef = String(metadata.workflowRef || targetNode.title || nodeId || "workflow").trim() || "workflow";
+  const briefCode = String(metadata.briefCode || "").trim();
+  const storyboardCode = String(metadata.storyboardCode || "").trim();
+  const summaryParts = [workflowRef, briefCode, storyboardCode].filter(Boolean);
+  const baseRun = {
+    date: stamp,
+    count: String(artifacts.length || 1),
+    wfName: workflowRef,
+    wfCode: workflowCode(workflowRef),
+    genCode: generationCode(runId),
+    url: String(primary?.previewUri || primary?.uri || "#"),
+    data: {
+      artifacts,
+      step: {
+        id: stepId,
+        nodeId,
+        nodeKind: String(targetNode.kind || ""),
+        status: "completed"
+      },
+      metadata
+    }
+  };
+
+  upsertUiRunRow(targetNode, {
+    ...baseRun,
+    summary: `${summaryParts.join(" · ") || "Generation run"} · ${artifacts.length || 1} asset${(artifacts.length || 1) === 1 ? "" : "s"}`
+  });
+  const targetUi = nodeUiState(targetNode).uiState;
+  targetUi.connected = true;
+  targetUi.sync = "just now";
+  if (targetNode.config) targetNode.config.uiState = targetUi;
+
+  if (assetNode) {
+    upsertUiRunRow(assetNode, {
+      ...baseRun,
+      summary: `${workflowRef} · ${artifacts.length || 1} asset${(artifacts.length || 1) === 1 ? "" : "s"}`
+    });
+    const assetUi = nodeUiState(assetNode).uiState;
+    assetUi.status = "ready";
+    assetUi.connected = true;
+    assetUi.sync = "just now";
+    if (assetNode.config) assetNode.config.uiState = assetUi;
+  }
+
+  nextDoc.updatedAt = new Date().toISOString();
+  return { changed: true, doc: nextDoc };
 }
 
 function resolveElevenApiKey(settings: DesktopSettings): string | undefined {
@@ -2092,6 +4257,7 @@ async function completeStepWithArtifacts(
   nodeId: string,
   artifacts: GenerationArtifact[]
 ) {
+  const storedArtifacts: GenerationArtifact[] = [];
   for (const generated of artifacts) {
     const stored = addArtifact(
       runId,
@@ -2118,6 +4284,32 @@ async function completeStepWithArtifacts(
       artifact: stored,
       updatedAt: nowIso()
     });
+
+    storedArtifacts.push(stored);
+  }
+
+  if (storedArtifacts.length) {
+    const snapshot = getWorkspace(workspaceId);
+    const doc = snapshot.documents[productId];
+    if (doc) {
+      const persisted = persistGenerationArtifactsToCanvasDoc({
+        doc,
+        runId,
+        stepId,
+        nodeId,
+        artifacts: storedArtifacts
+      });
+      if (persisted.changed) {
+        const updatedDoc = upsertCanvas(workspaceId, productId, persisted.doc);
+        broadcast(workspaceId, {
+          type: "canvas.updated",
+          workspaceId,
+          productId,
+          doc: updatedDoc,
+          updatedAt: nowIso()
+        });
+      }
+    }
   }
 }
 
@@ -2172,6 +4364,62 @@ function requireProviderToken(workspaceId: string, provider: string) {
   const token = getWorkspaceProviderToken(workspaceId, provider);
   if (!token) throw new Error(`Missing token for provider ${provider}`);
   return token;
+}
+
+function deriveLocalRedditProviderIssue(input: {
+  findingCount: number;
+  apifyToken: string;
+  diagnostics?: { attempts?: Array<{ source?: string; status?: string; reason?: string; findingCount?: number }> } | null;
+}) {
+  const attempts = Array.isArray(input.diagnostics?.attempts) ? input.diagnostics?.attempts : [];
+  const apifyAttempt = attempts.find((attempt) => String(attempt.source || "") === "apify") || null;
+  const pullpushAttempt = attempts.find((attempt) => String(attempt.source || "") === "pullpush") || null;
+  if (!String(input.apifyToken || "").trim() && input.findingCount === 0) {
+    return {
+      code: "missing_apify_token",
+      source: "apify",
+      message: "Add an Apify API key or connect your Apify account to run Reddit research reliably.",
+      action: "Open Settings or connect the Apify provider, then rerun the Reddit node."
+    };
+  }
+  if (apifyAttempt && String(apifyAttempt.status || "") === "failed" && String(apifyAttempt.reason || "") === "no_items" && input.findingCount === 0) {
+    return {
+      code: "reddit_no_results",
+      source: pullpushAttempt && String(pullpushAttempt.status || "") === "succeeded" ? "pullpush" : "reddit",
+      message: "No Reddit findings were captured for this run.",
+      action: "Try broadening the brand context, queries, or subreddits and rerun the node."
+    };
+  }
+  return null;
+}
+
+function buildLocalRecurringSubreddits(findings: Array<{ subreddit?: string; sourceUrl?: string; sourceTitle?: string; text?: string; score?: number }>, limit = 12) {
+  const map = new Map<string, { subreddit: string; postCount: number; scoreSum: number; topUrl: string; topTitle: string }>();
+  findings.forEach((finding) => {
+    const subreddit = String(finding.subreddit || "").trim() || "unknown";
+    const current = map.get(subreddit) || {
+      subreddit,
+      postCount: 0,
+      scoreSum: 0,
+      topUrl: "",
+      topTitle: ""
+    };
+    current.postCount += 1;
+    current.scoreSum += Number(finding.score || 0);
+    if (!current.topUrl && finding.sourceUrl) current.topUrl = String(finding.sourceUrl || "");
+    if (!current.topTitle && finding.sourceTitle) current.topTitle = String(finding.sourceTitle || "");
+    map.set(subreddit, current);
+  });
+  return Array.from(map.values())
+    .sort((a, b) => b.postCount - a.postCount || b.scoreSum - a.scoreSum)
+    .slice(0, Math.max(1, limit))
+    .map((item) => ({
+      subreddit: item.subreddit,
+      postCount: item.postCount,
+      scoreSum: item.scoreSum,
+      topUrl: item.topUrl,
+      topTitle: item.topTitle
+    }));
 }
 
 async function runSourceOrAgentBlueprint(workspaceId: string, node: CanvasNode) {
@@ -2880,24 +5128,141 @@ app.get("/agents/catalog", (_req, res) => {
 
 app.post("/agents/reddit/scrape", async (req, res) => {
   try {
+    const workspaceId = String(req.body?.workspaceId || "").trim() || WORKSPACE_DEFAULT;
+    const nodeId = String(req.body?.nodeId || "").trim() || "reddit";
+    const productId = String(req.body?.productId || "").trim() || undefined;
     const brandAnalysis = (req.body?.brandAnalysis || {}) as Record<string, unknown>;
     const queries = Array.isArray(req.body?.queries) ? req.body.queries.filter((v: unknown) => typeof v === "string") : undefined;
     const subreddits = Array.isArray(req.body?.subreddits)
       ? req.body.subreddits.filter((v: unknown) => typeof v === "string")
       : undefined;
-    const result = await runRedditScraper({ brandAnalysis: brandAnalysis as any, queries, subreddits });
-    res.json(result);
+    const frequencyHours = Math.max(1, Number(req.body?.frequencyHours || 24));
+    const settings = getDesktopSettings();
+    const workspaceApifyToken = getWorkspaceProviderToken(workspaceId, "apify");
+    const apifyToken = String(workspaceApifyToken || settings.keys.apifyApiKey || "").trim();
+    const result = await runRedditScraper({
+      brandAnalysis: brandAnalysis as any,
+      queries,
+      subreddits,
+      apifyToken
+    });
+    const previousRuns = listRedditScrapeRuns(workspaceId, nodeId, 100);
+    const providerIssue = deriveLocalRedditProviderIssue({
+      findingCount: Array.isArray(result.findings) ? result.findings.length : 0,
+      apifyToken,
+      diagnostics: result.diagnostics
+    });
+    const derived = deriveLocalRedditRunState({
+      findings: (Array.isArray(result.findings) ? result.findings : []) as Array<Record<string, unknown>>,
+      previousRuns,
+      limit: Number(req.body?.insightLimit || 12),
+      providerIssue
+    });
+    const insights = derived.insights;
+    const runAt = nowIso();
+    const nextRunAt = new Date(Date.now() + frequencyHours * 60 * 60 * 1000).toISOString();
+    const recurringSubreddits = buildLocalRecurringSubreddits(result.findings as Array<Record<string, unknown>>, Number(req.body?.subredditLimit || 12));
+    const insightMeta = derived.meta;
+    const persisted = persistRedditScrapeRun({
+      workspaceId,
+      nodeId,
+      productId,
+      status: "completed",
+      runAt,
+      nextRunAt,
+      frequencyHours,
+      findings: (Array.isArray(result.findings) ? result.findings : []) as Array<Record<string, unknown>>,
+      insights: insights as Array<Record<string, unknown>>,
+      insightsLibrary: derived.insightsLibrary as Array<Record<string, unknown>>,
+      recurringSubreddits: recurringSubreddits as Array<Record<string, unknown>>,
+      meta: insightMeta
+    });
+    res.json({
+      ...result,
+      insights,
+      insightsLibrary: derived.insightsLibrary,
+      recurringSubreddits,
+      providerIssue,
+      insightMeta,
+      meta: insightMeta,
+      frequencyHours,
+      runAt,
+      nextRunAt,
+      runId: persisted.id
+    });
   } catch (error: any) {
-    res.status(500).json({ error: error?.message || "reddit_scraper_failed" });
+    const workspaceId = String(req.body?.workspaceId || "").trim() || WORKSPACE_DEFAULT;
+    const nodeId = String(req.body?.nodeId || "").trim() || "reddit";
+    const productId = String(req.body?.productId || "").trim() || undefined;
+    const settings = getDesktopSettings();
+    const workspaceApifyToken = getWorkspaceProviderToken(workspaceId, "apify");
+    const providerIssue = deriveLocalRedditProviderIssue({
+      findingCount: 0,
+      apifyToken: String(workspaceApifyToken || settings.keys.apifyApiKey || "").trim(),
+      diagnostics: null
+    });
+    const runAt = nowIso();
+    const meta = {
+      source: "agents.reddit.scrape",
+      noNewInsights: true,
+      newInsightCount: 0,
+      currentReferenceCount: 0,
+      newReferenceCount: 0,
+      deltaFindingCount: 0,
+      providerIssue,
+      error: error?.message || "reddit_scraper_failed"
+    };
+    const persisted = persistRedditScrapeRun({
+      workspaceId,
+      nodeId,
+      productId,
+      status: "failed",
+      runAt,
+      nextRunAt: undefined,
+      frequencyHours: Math.max(1, Number(req.body?.frequencyHours || 24)),
+      findings: [],
+      insights: [],
+      insightsLibrary: [],
+      recurringSubreddits: [],
+      meta
+    });
+    res.status(500).json({ error: error?.message || "reddit_scraper_failed", providerIssue, runId: persisted.id, meta, insightMeta: meta });
   }
 });
 
 app.post("/agents/persona-needs-emotions", async (req, res) => {
   try {
+    const workspaceId = String(req.body?.workspaceId || "").trim() || WORKSPACE_DEFAULT;
+    const productId = String(req.body?.productId || "").trim() || "p-motion-canvas";
+    const nodeId = String(req.body?.nodeId || "").trim() || "customer";
     const brandAnalysis = (req.body?.brandAnalysis || {}) as Record<string, unknown>;
     const findings = Array.isArray(req.body?.findings) ? req.body.findings : [];
     const result = await runPersonaNeedEmotion({ brandAnalysis: brandAnalysis as any, findings: findings as any });
-    res.json(result);
+    const batchId = newId("persona");
+    const updated = upsertCustomerBrainState({
+      workspaceId,
+      productId,
+      nodeId: "customer",
+      personaItems: Array.isArray(result.items) ? (result.items as Array<Record<string, unknown>>) : [],
+      selectionMode: "manual",
+      meta: { personaUpdatedAt: nowIso() }
+    });
+    createCustomerStrategyRun({
+      workspaceId,
+      productId,
+      kind: "persona",
+      batchId,
+      runAt: updated.updatedAt,
+      summary: `${Array.isArray(result.items) ? result.items.length : 0} persona rows mapped`,
+      countLabel: `${Array.isArray(result.items) ? result.items.length : 0} persona${Array.isArray(result.items) && result.items.length === 1 ? "" : "s"}`,
+      sourceLabel: "persona synthesis",
+      rows: Array.isArray(result.items) ? (result.items as Array<Record<string, unknown>>) : [],
+      meta: { nodeId }
+    });
+    try {
+      persistAutoDerivedPresentationArtifacts(workspaceId, productId, nodeId);
+    } catch {}
+    res.json({ ...result, batchId, updatedAt: updated.updatedAt });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "persona_needs_emotions_failed" });
   }
@@ -2905,10 +5270,36 @@ app.post("/agents/persona-needs-emotions", async (req, res) => {
 
 app.post("/agents/pne-framework", (req, res) => {
   try {
+    const workspaceId = String(req.body?.workspaceId || "").trim() || WORKSPACE_DEFAULT;
+    const productId = String(req.body?.productId || "").trim() || "p-motion-canvas";
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const limit = Number(req.body?.limit || 12);
     const result = runPneFramework({ items: items as any, limit: Number.isFinite(limit) ? limit : 12 });
-    res.json(result);
+    const batchId = newId("pne");
+    const updated = upsertCustomerBrainState({
+      workspaceId,
+      productId,
+      nodeId: "customer",
+      pneCombos: Array.isArray(result.pneCombos) ? (result.pneCombos as Array<Record<string, unknown>>) : [],
+      selectionMode: "manual",
+      meta: { pneUpdatedAt: nowIso() }
+    });
+    createCustomerStrategyRun({
+      workspaceId,
+      productId,
+      kind: "pne",
+      batchId,
+      runAt: updated.updatedAt,
+      summary: `${Array.isArray(result.pneCombos) ? result.pneCombos.length : 0} PNE combos generated`,
+      countLabel: `${Array.isArray(result.pneCombos) ? result.pneCombos.length : 0} PNE combo${Array.isArray(result.pneCombos) && result.pneCombos.length === 1 ? "" : "s"}`,
+      sourceLabel: "PNE synthesis",
+      rows: Array.isArray(result.pneCombos) ? (result.pneCombos as Array<Record<string, unknown>>) : [],
+      meta: { nodeId }
+    });
+    try {
+      persistAutoDerivedPresentationArtifacts(workspaceId, productId, nodeId);
+    } catch {}
+    res.json({ ...result, batchId, updatedAt: updated.updatedAt });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "pne_framework_failed" });
   }
@@ -2936,6 +5327,750 @@ app.post("/templates/comfy/import", (req, res) => {
   const sourceRepo = req.body?.sourceRepo ? String(req.body.sourceRepo) : undefined;
   const result = importComfyTemplatesFromRepo(repoPath, sourceRepo);
   res.json({ ...result, total: listComfyTemplates().length });
+});
+
+app.get("/workspaces/:workspaceId/brand-profile", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const row = getWorkspaceBrandProfile(workspaceId);
+  if (!row) {
+    res.status(404).json({ error: "brand_profile_not_found" });
+    return;
+  }
+  res.json(row);
+});
+
+app.put("/workspaces/:workspaceId/brand-profile", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const existing = getWorkspaceBrandProfile(workspaceId);
+  const brandUrl = String(req.body?.brandUrl || existing?.brandUrl || "").trim();
+  if (!workspaceId) {
+    res.status(400).json({ error: "workspace_id_required" });
+    return;
+  }
+  if (!brandUrl) {
+    res.status(400).json({ error: "brand_url_required" });
+    return;
+  }
+  const existingAnalysis = isPlainObject(existing?.analysisJson) ? existing?.analysisJson : {};
+  const incomingAnalysis = isPlainObject(req.body?.analysisJson) ? req.body.analysisJson : {};
+  const saved = upsertWorkspaceBrandProfile(workspaceId, {
+    brandUrl,
+    companyName: String(req.body?.companyName || existing?.companyName || "").trim(),
+    category: String(req.body?.category || existing?.category || "").trim(),
+    targetAudience: String(req.body?.targetAudience || existing?.targetAudience || "").trim(),
+    productsCatalog: Array.isArray(req.body?.productsCatalog)
+      ? req.body.productsCatalog.map((value: unknown) => String(value || ""))
+      : Array.isArray(existing?.productsCatalog)
+        ? existing.productsCatalog
+        : [],
+    analysisJson: mergeBrandAnalysisJson(existingAnalysis, incomingAnalysis, {
+      source: "brand_profile_manual_save",
+      updatedAt: nowIso()
+    })
+  });
+  persistBrandProfileRuns(workspaceId, saved, "brand_profile_manual_save", {
+    triggeredBy: "brand_profile_manual_save"
+  });
+  res.json(saved);
+});
+
+app.post("/workspaces/:workspaceId/brand-profile/analyze", async (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const brandUrl = String(req.body?.brandUrl || "").trim();
+  if (!workspaceId || !brandUrl) {
+    res.status(400).json({ error: "workspace_id_and_brand_url_required" });
+    return;
+  }
+  const inferred = await analyzeBrandProfile(brandUrl);
+  const existing = getWorkspaceBrandProfile(workspaceId);
+  const existingAnalysis = isPlainObject(existing?.analysisJson) ? existing?.analysisJson : {};
+  const saved = upsertWorkspaceBrandProfile(workspaceId, {
+    brandUrl: inferred.brandUrl,
+    companyName: String(req.body?.companyName || inferred.companyName || "").trim(),
+    category: String(req.body?.category || inferred.category || "").trim(),
+    targetAudience: String(req.body?.targetAudience || inferred.targetAudience || "").trim(),
+    productsCatalog: Array.isArray(req.body?.productsCatalog)
+      ? req.body.productsCatalog.map((value: unknown) => String(value || ""))
+      : inferred.productsCatalog,
+    analysisJson: mergeBrandAnalysisJson(existingAnalysis, inferred.analysisJson as Record<string, unknown>, {
+      source: "brand_profile_analyze",
+      analyzedAt: nowIso(),
+      notes: String(req.body?.notes || "").trim()
+    })
+  });
+  persistBrandProfileRuns(workspaceId, saved, "brand_profile_analyze", {
+    triggeredBy: "brand_profile_analyze",
+    notes: String(req.body?.notes || "").trim()
+  });
+  res.json(saved);
+});
+
+app.get("/workspaces/:workspaceId/brand-profile/runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const nodeIdValue = String(req.query?.nodeId || "").trim();
+  const nodeId = nodeIdValue === "brand_kit" || nodeIdValue === "brand_guidelines" ? nodeIdValue : undefined;
+  const limit = Number(req.query?.limit || 20);
+  res.json(listBrandProfileRuns(workspaceId, nodeId, Number.isFinite(limit) ? limit : 20));
+});
+
+app.get("/workspaces/:workspaceId/reddit/runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const nodeId = String(req.query.nodeId || "").trim() || undefined;
+  const limit = Number(req.query.limit || 20);
+  res.json({
+    workspaceId,
+    nodeId: nodeId || null,
+    runs: dedupeLocalRedditRunsForResponse(
+      listRedditScrapeRuns(workspaceId, nodeId, Number.isFinite(limit) ? Math.max(limit * 3, limit) : 60)
+    ).slice(0, Number.isFinite(limit) ? limit : 20)
+  });
+});
+
+app.get("/workspaces/:workspaceId/reddit/runs/:runId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const runId = String(req.params.runId || "").trim();
+  const run = getRedditScrapeRunById(workspaceId, runId);
+  if (!run) {
+    res.status(404).json({ error: "reddit_run_not_found" });
+    return;
+  }
+  res.json(run);
+});
+
+app.get("/workspaces/:workspaceId/reddit/insights-library", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const nodeId = String(req.query.nodeId || "").trim() || "reddit";
+  const latest = readLatestRedditRunStmt.get(workspaceId, nodeId) as
+    | {
+        id: string;
+        workspaceId: string;
+        nodeId: string;
+        productId: string | null;
+        status: string;
+        runAt: string;
+        nextRunAt: string | null;
+        frequencyHours: number;
+        findingsJson: string;
+        insightsJson: string;
+        insightsLibraryJson: string;
+        recurringSubredditsJson: string;
+        metaJson: string;
+      }
+    | undefined;
+  const run = latest ? parseRedditRunRow(latest) : null;
+  res.json({
+    workspaceId,
+    nodeId,
+    items: run ? run.insightsLibrary : [],
+    runId: run ? run.id : null,
+    updatedAt: run ? run.runAt : null
+  });
+});
+
+app.get("/workspaces/:workspaceId/nodes/:nodeId/instructions", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const nodeId = String(req.params.nodeId || "").trim();
+  const limit = Number(req.query.limit || 50);
+  res.json({ records: listNodeInstructionMemory(workspaceId, nodeId, Number.isFinite(limit) ? limit : 50) });
+});
+
+app.post("/workspaces/:workspaceId/nodes/:nodeId/instructions", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const nodeId = String(req.params.nodeId || "").trim();
+  const text = String(req.body?.text || "").trim();
+  if (!text) {
+    res.status(400).json({ error: "instruction_text_required" });
+    return;
+  }
+  res.status(201).json(createNodeInstructionMemory({ workspaceId, nodeId, text }));
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/pne-state", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const state = getCustomerBrainState(workspaceId, productId, "customer");
+  res.json({
+    selectedInsights: state.selectedInsights,
+    personaItems: state.personaItems,
+    pneCombos: state.pneCombos,
+    selectionMode: state.selectionMode,
+    meta: state.meta,
+    updatedAt: state.updatedAt
+  });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/persona-runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const limit = Number(req.query.limit || 12);
+  res.json({ workspaceId, productId, runs: listCustomerStrategyRuns(workspaceId, productId, "persona", Number.isFinite(limit) ? limit : 12) });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/persona-runs/:batchId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const batchId = String(req.params.batchId || "").trim();
+  const run = getCustomerStrategyRunByBatch(workspaceId, productId, "persona", batchId);
+  if (!run) {
+    res.status(404).json({ error: "persona_run_not_found" });
+    return;
+  }
+  res.json({ workspaceId, productId, run });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/pne-runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const limit = Number(req.query.limit || 12);
+  res.json({ workspaceId, productId, runs: listCustomerStrategyRuns(workspaceId, productId, "pne", Number.isFinite(limit) ? limit : 12) });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/pne-runs/:batchId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const batchId = String(req.params.batchId || "").trim();
+  const run = getCustomerStrategyRunByBatch(workspaceId, productId, "pne", batchId);
+  if (!run) {
+    res.status(404).json({ error: "pne_run_not_found" });
+    return;
+  }
+  res.json({ workspaceId, productId, run });
+});
+
+app.post("/workspaces/:workspaceId/customer-brain/insights", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.body?.productId || "").trim() || "p-motion-canvas";
+  const selectedInsights = Array.isArray(req.body?.selectedInsights) ? req.body.selectedInsights : [];
+  const state = upsertCustomerBrainState({
+    workspaceId,
+    productId,
+    nodeId: "customer",
+    selectedInsights: selectedInsights as Array<Record<string, unknown>>,
+    selectionMode: "manual",
+    meta: {
+      selectedInsightsUpdatedAt: nowIso(),
+      lastShortlistSource: "manual"
+    }
+  });
+  try {
+    persistAutoDerivedPresentationArtifacts(workspaceId, productId, "customer");
+  } catch {}
+  res.json({ ok: true, updatedAt: state.updatedAt, selectedInsights: state.selectedInsights });
+});
+
+app.put("/workspaces/:workspaceId/customer-brain/persona-items", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.body?.productId || "").trim() || "p-motion-canvas";
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const batchId = newId("persona_edit");
+  const state = upsertCustomerBrainState({
+    workspaceId,
+    productId,
+    nodeId: "customer",
+    personaItems: items as Array<Record<string, unknown>>,
+    selectionMode: "manual",
+    meta: { personaUpdatedAt: nowIso() }
+  });
+  createCustomerStrategyRun({
+    workspaceId,
+    productId,
+    kind: "persona",
+    batchId,
+    runAt: state.updatedAt,
+    summary: `${Array.isArray(state.personaItems) ? state.personaItems.length : 0} persona rows updated`,
+    countLabel: `${Array.isArray(state.personaItems) ? state.personaItems.length : 0} persona${Array.isArray(state.personaItems) && state.personaItems.length === 1 ? "" : "s"}`,
+    sourceLabel: "manual persona edit",
+    rows: Array.isArray(state.personaItems) ? (state.personaItems as Array<Record<string, unknown>>) : [],
+    meta: {}
+  });
+  try {
+    persistAutoDerivedPresentationArtifacts(workspaceId, productId, "persona_needs_emotions");
+  } catch {}
+  res.json({ items: state.personaItems, updatedAt: state.updatedAt, batchId });
+});
+
+app.put("/workspaces/:workspaceId/customer-brain/pne-combos", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.body?.productId || "").trim() || "p-motion-canvas";
+  const pneCombos = Array.isArray(req.body?.pneCombos) ? req.body.pneCombos : [];
+  const normalizedPneCombos = withNormalizedPrimaryPneRows(pneCombos as Array<Record<string, unknown>>);
+  const activePneId = deriveActivePneIdFromRows(normalizedPneCombos);
+  const batchId = newId("pne_edit");
+  const state = upsertCustomerBrainState({
+    workspaceId,
+    productId,
+    nodeId: "customer",
+    pneCombos: normalizedPneCombos,
+    selectionMode: "manual",
+      meta: { pneUpdatedAt: nowIso(), activePneId }
+  });
+  createCustomerStrategyRun({
+    workspaceId,
+    productId,
+    kind: "pne",
+    batchId,
+    runAt: state.updatedAt,
+    summary: `${Array.isArray(state.pneCombos) ? state.pneCombos.length : 0} PNE combos updated`,
+    countLabel: `${Array.isArray(state.pneCombos) ? state.pneCombos.length : 0} PNE combo${Array.isArray(state.pneCombos) && state.pneCombos.length === 1 ? "" : "s"}`,
+    sourceLabel: "manual PNE edit",
+    rows: Array.isArray(state.pneCombos) ? (state.pneCombos as Array<Record<string, unknown>>) : [],
+    meta: { activePneId }
+  });
+  try {
+    persistAutoDerivedPresentationArtifacts(workspaceId, productId, "pne_framework");
+  } catch {}
+  res.json({ pneCombos: state.pneCombos, updatedAt: state.updatedAt, batchId });
+});
+
+app.get("/workspaces/:workspaceId/presentation/brief-state", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const productId = String(req.query.productId || "").trim() || undefined;
+  if (!workspaceId) {
+    res.status(400).json({ error: "workspace_id_required" });
+    return;
+  }
+  res.json(buildPresentationBriefState(workspaceId, productId));
+});
+
+app.put("/workspaces/:workspaceId/presentation/briefs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  try {
+    const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+    const nodeId = String(req.body?.nodeId || "synth").trim();
+    const productId = String(req.body?.productId || "").trim() || undefined;
+    const briefRaw = isPlainObject(req.body?.brief) ? (req.body.brief as Record<string, unknown>) : null;
+    if (!workspaceId) {
+      res.status(400).json({ error: "workspace_id_required" });
+      return;
+    }
+    if (!briefRaw) {
+      res.status(400).json({ error: "brief_required" });
+      return;
+    }
+    const now = nowIso();
+    const existingBriefs = listBriefLibraryRecords(workspaceId, 80, productId);
+    const revision = buildNextPresentationArtifactRevision(existingBriefs, briefRaw, "brief_manual");
+    const stringList = (value: unknown, limit = 12) =>
+      Array.isArray(value)
+        ? Array.from(new Set(value.map((entry) => String(entry || "").trim()).filter(Boolean))).slice(0, limit)
+        : [];
+    const references = Array.isArray(briefRaw.references)
+      ? briefRaw.references.filter((entry) => entry && typeof entry === "object").slice(0, 10)
+      : [];
+    const sourceSummary = isPlainObject(briefRaw.sourceSummary) ? briefRaw.sourceSummary : {};
+    const sourceRefs = isPlainObject(briefRaw.sourceRefs) ? briefRaw.sourceRefs : {};
+    const successMetrics = isPlainObject(briefRaw.successMetrics) ? briefRaw.successMetrics : {};
+    const brandContext = isPlainObject(briefRaw.brandContext) ? briefRaw.brandContext : {};
+    const customerSummary = isPlainObject(briefRaw.customerSummary) ? briefRaw.customerSummary : {};
+    const sanitizedBrief = {
+      id: revision.id,
+      rootId: revision.rootId,
+      previousId: revision.previousId || undefined,
+      code: String(briefRaw.code || `BRF-MANUAL-${String(Date.now()).slice(-6)}`).trim(),
+      version: revision.version,
+      title: String(briefRaw.title || "Strategic Creative Brief").trim(),
+      category: String(briefRaw.category || "").trim(),
+      objective: String(briefRaw.objective || "Create a production-ready performance marketing direction").trim(),
+      audience: String(briefRaw.audience || "").trim(),
+      angle: String(briefRaw.angle || "").trim(),
+      insightCore: String(briefRaw.insightCore || "").trim(),
+      targetMoment: String(briefRaw.targetMoment || "").trim(),
+      hook: String(briefRaw.hook || "").trim(),
+      hookOptions: stringList(briefRaw.hookOptions, 8),
+      audienceFraming: String(briefRaw.audienceFraming || "").trim(),
+      offerFrame: String(briefRaw.offerFrame || "").trim(),
+      proofPoints: stringList(briefRaw.proofPoints, 8),
+      objections: stringList(briefRaw.objections, 8),
+      ctas: stringList(briefRaw.ctas, 8),
+      formatSuggestions: stringList(briefRaw.formatSuggestions, 8),
+      tone: String(briefRaw.tone || "").trim(),
+      successMetrics: {
+        hookHoldTarget: String(successMetrics.hookHoldTarget || ">4s").trim(),
+        ctrTarget: String(successMetrics.ctrTarget || "1.5%+").trim(),
+        cvrTarget: String(successMetrics.cvrTarget || "2.5%+").trim(),
+        roasTarget: String(successMetrics.roasTarget || "3.0x+").trim()
+      },
+      brandContext: {
+        companyName: String(brandContext.companyName || "").trim(),
+        category: String(brandContext.category || "").trim(),
+        targetAudience: String(brandContext.targetAudience || "").trim(),
+        productFocus: String(brandContext.productFocus || "").trim(),
+        productsCatalog: stringList(brandContext.productsCatalog, 12),
+        valueProps: stringList(brandContext.valueProps, 12),
+        messagingPillars: stringList(brandContext.messagingPillars, 12),
+        toneTraits: stringList(brandContext.toneTraits, 12),
+        proofPoints: stringList(brandContext.proofPoints, 12),
+        visualSignals: stringList(brandContext.visualSignals, 12),
+        positioningSummary: String(brandContext.positioningSummary || "").trim()
+      },
+      customerSummary: {
+        leadPersona: String(customerSummary.leadPersona || "").trim(),
+        leadNeed: String(customerSummary.leadNeed || "").trim(),
+        leadEmotion: String(customerSummary.leadEmotion || "").trim(),
+        leadAngle: String(customerSummary.leadAngle || "").trim(),
+        primaryPneId: String(customerSummary.primaryPneId || "").trim(),
+        supportingInsightCount: Number(customerSummary.supportingInsightCount || 0) || 0,
+        supportingReferenceCount: Number(customerSummary.supportingReferenceCount || 0) || 0
+      },
+      sourceSummary: {
+        selectedInsightCount: Number(sourceSummary.selectedInsightCount || 0) || 0,
+        mentionCount: Number(sourceSummary.mentionCount || 0) || 0,
+        uniqueUserCount: Number(sourceSummary.uniqueUserCount || 0) || 0,
+        personaCount: Number(sourceSummary.personaCount || 0) || 0,
+        pneCount: Number(sourceSummary.pneCount || 0) || 0,
+        activePneId: String(sourceSummary.activePneId || "").trim()
+      },
+      sourceRefs: {
+        selectedInsightIds: stringList(sourceRefs.selectedInsightIds, 24),
+        personaIds: stringList(sourceRefs.personaIds, 24),
+        pneIds: stringList(sourceRefs.pneIds, 24)
+      },
+      references,
+      createdAt: revision.createdAt,
+      updatedAt: now,
+      productId
+    };
+    const storedRecord = addDataStoreRecord("db_briefs_library", workspaceId, nodeId, productId, {
+      ...sanitizedBrief,
+      storedAt: now
+    });
+    res.json({ brief: sanitizedBrief, storedCount: 1, records: [storedRecord], savedAt: now });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "brief_save_failed" });
+  }
+});
+
+app.put("/workspaces/:workspaceId/presentation/storyboards", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  try {
+    const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+    const nodeId = String(req.body?.nodeId || "storyboard").trim();
+    const productId = String(req.body?.productId || "").trim() || undefined;
+    const storyboardRaw = isPlainObject(req.body?.storyboard) ? (req.body.storyboard as Record<string, unknown>) : null;
+    if (!workspaceId) {
+      res.status(400).json({ error: "workspace_id_required" });
+      return;
+    }
+    if (!storyboardRaw) {
+      res.status(400).json({ error: "storyboard_required" });
+      return;
+    }
+    const now = nowIso();
+    const existingStoryboards = listStoryboardLibraryRecords(workspaceId, 80, productId);
+    const revision = buildNextPresentationArtifactRevision(existingStoryboards, storyboardRaw, "storyboard_manual");
+    const stringList = (value: unknown, limit = 12) =>
+      Array.isArray(value)
+        ? Array.from(new Set(value.map((entry) => String(entry || "").trim()).filter(Boolean))).slice(0, limit)
+        : [];
+    const references = Array.isArray(storyboardRaw.references)
+      ? storyboardRaw.references.filter((entry) => entry && typeof entry === "object").slice(0, 10)
+      : [];
+    const sourceSummary = isPlainObject(storyboardRaw.sourceSummary) ? storyboardRaw.sourceSummary : {};
+    const brandContext = isPlainObject(storyboardRaw.brandContext) ? storyboardRaw.brandContext : {};
+    const customerSummary = isPlainObject(storyboardRaw.customerSummary) ? storyboardRaw.customerSummary : {};
+    const sourceRefs = isPlainObject(storyboardRaw.sourceRefs) ? storyboardRaw.sourceRefs : {};
+    const generationReady = isPlainObject(storyboardRaw.generationReady) ? storyboardRaw.generationReady : {};
+    const audioDirection = isPlainObject(storyboardRaw.audioDirection) ? storyboardRaw.audioDirection : {};
+    const scriptRaw = isPlainObject(storyboardRaw.script) ? storyboardRaw.script : {};
+    const scenes = Array.isArray(storyboardRaw.scenes)
+      ? storyboardRaw.scenes
+          .filter((entry) => entry && typeof entry === "object")
+          .map((entry: any, idx) => ({
+            index: Number(entry.index || idx + 1) || idx + 1,
+            beat: String(entry.beat || entry.shotIntent || `Scene ${idx + 1}`).trim(),
+            durationSec: Number(entry.durationSec || 0) || 0,
+            shotIntent: String(entry.shotIntent || entry.beat || `Scene ${idx + 1}`).trim(),
+            visualCue: String(entry.visualCue || "").trim(),
+            overlay: String(entry.overlay || "").trim(),
+            voiceoverLine: String(entry.voiceoverLine || "").trim(),
+            transition: String(entry.transition || "").trim()
+          }))
+          .slice(0, 8)
+      : [];
+    const fullVoiceover = String(scriptRaw.fullVoiceover || "").trim();
+    const voiceoverParts = fullVoiceover
+      ? fullVoiceover.split(/(?<=[.!?])\s+/).map((line) => line.trim()).filter(Boolean)
+      : [];
+    const sanitizedStoryboard = {
+      id: revision.id,
+      rootId: revision.rootId,
+      previousId: revision.previousId || undefined,
+      code: String(storyboardRaw.code || `SB-MANUAL-${String(Date.now()).slice(-6)}`).trim(),
+      version: revision.version,
+      briefId: String(storyboardRaw.briefId || "").trim(),
+      briefCode: String(storyboardRaw.briefCode || "").trim(),
+      title: String(storyboardRaw.title || "Storyboard + Script").trim(),
+      format: String(storyboardRaw.format || "").trim(),
+      audience: String(storyboardRaw.audience || "").trim(),
+      angle: String(storyboardRaw.angle || "").trim(),
+      objective: String(storyboardRaw.objective || "Translate the brief into a generation-ready scene plan").trim(),
+      targetMoment: String(storyboardRaw.targetMoment || "").trim(),
+      hook: String(storyboardRaw.hook || scriptRaw.opening || "").trim(),
+      pacing: String(storyboardRaw.pacing || "").trim(),
+      totalDurationSec: Number(storyboardRaw.totalDurationSec || 0) || scenes.reduce((sum, scene) => sum + (Number(scene.durationSec || 0) || 0), 0),
+      scenes,
+      script: {
+        opening: String(scriptRaw.opening || voiceoverParts[0] || "").trim(),
+        body: Array.isArray(scriptRaw.body)
+          ? scriptRaw.body.map((value) => String(value || "").trim()).filter(Boolean).slice(0, 8)
+          : voiceoverParts.slice(1, -1),
+        closing: String(scriptRaw.closing || voiceoverParts[voiceoverParts.length - 1] || "").trim(),
+        fullVoiceover,
+        overlays: Array.isArray(scriptRaw.overlays)
+          ? scriptRaw.overlays.map((value) => String(value || "").trim()).filter(Boolean).slice(0, 8)
+          : scenes.map((scene) => scene.overlay).filter(Boolean).slice(0, 8)
+      },
+      audioDirection: {
+        voiceoverTone: String(audioDirection.voiceoverTone || "").trim(),
+        musicMood: String(audioDirection.musicMood || "").trim(),
+        sfxNotes: stringList(audioDirection.sfxNotes, 8)
+      },
+      generationReady: {
+        templateHint: String(generationReady.templateHint || storyboardRaw.format || "").trim(),
+        promptSummary: String(generationReady.promptSummary || "").trim(),
+        scenePlan: String(generationReady.scenePlan || "").trim()
+      },
+      brandContext: {
+        companyName: String(brandContext.companyName || "").trim(),
+        category: String(brandContext.category || "").trim(),
+        targetAudience: String(brandContext.targetAudience || "").trim(),
+        productFocus: String(brandContext.productFocus || "").trim(),
+        productsCatalog: stringList(brandContext.productsCatalog, 12),
+        valueProps: stringList(brandContext.valueProps, 12),
+        messagingPillars: stringList(brandContext.messagingPillars, 12),
+        toneTraits: stringList(brandContext.toneTraits, 12),
+        proofPoints: stringList(brandContext.proofPoints, 12),
+        visualSignals: stringList(brandContext.visualSignals, 12),
+        positioningSummary: String(brandContext.positioningSummary || "").trim()
+      },
+      customerSummary: {
+        leadPersona: String(customerSummary.leadPersona || "").trim(),
+        leadNeed: String(customerSummary.leadNeed || "").trim(),
+        leadEmotion: String(customerSummary.leadEmotion || "").trim(),
+        leadAngle: String(customerSummary.leadAngle || "").trim(),
+        primaryPneId: String(customerSummary.primaryPneId || "").trim()
+      },
+      sourceSummary: {
+        briefCode: String(sourceSummary.briefCode || storyboardRaw.briefCode || "").trim(),
+        proofPointCount: Number(sourceSummary.proofPointCount || 0) || 0,
+        objectionCount: Number(sourceSummary.objectionCount || 0) || 0,
+        referenceCount: Number(sourceSummary.referenceCount || references.length) || 0,
+        activePneId: String(sourceSummary.activePneId || "").trim()
+      },
+      sourceRefs: {
+        selectedInsightIds: stringList(sourceRefs.selectedInsightIds, 24),
+        personaIds: stringList(sourceRefs.personaIds, 24),
+        pneIds: stringList(sourceRefs.pneIds, 24)
+      },
+      references,
+      createdAt: revision.createdAt,
+      updatedAt: now,
+      productId
+    };
+    const storyboardRecord = addDataStoreRecord("db_storyboard_library", workspaceId, nodeId, productId, {
+      ...sanitizedStoryboard,
+      storedAt: now
+    });
+    const scriptRecord = addDataStoreRecord("db_scripts_library", workspaceId, nodeId, productId, {
+      storyboardId: sanitizedStoryboard.id,
+      storyboardCode: sanitizedStoryboard.code,
+      briefId: sanitizedStoryboard.briefId,
+      briefCode: sanitizedStoryboard.briefCode,
+      title: sanitizedStoryboard.title,
+      format: sanitizedStoryboard.format,
+      script: sanitizedStoryboard.script,
+      audioDirection: sanitizedStoryboard.audioDirection,
+      createdAt: sanitizedStoryboard.createdAt,
+      updatedAt: now,
+      storedAt: now
+    });
+    res.json({
+      storyboard: sanitizedStoryboard,
+      storedStoryboardCount: 1,
+      storedScriptCount: 1,
+      storyboardRecords: [storyboardRecord],
+      scriptRecords: [scriptRecord],
+      savedAt: now
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "storyboard_save_failed" });
+  }
+});
+
+app.get("/workspaces/:workspaceId/presentation/storyboard-state", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const productId = String(req.query.productId || "").trim() || undefined;
+  if (!workspaceId) {
+    res.status(400).json({ error: "workspace_id_required" });
+    return;
+  }
+  res.json(buildPresentationStoryboardState(workspaceId, productId));
+});
+
+app.get("/workspaces/:workspaceId/generation/strategy-packet", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = String(req.params.workspaceId || WORKSPACE_DEFAULT).trim();
+  const productId = String(req.query.productId || "").trim() || undefined;
+  if (!workspaceId) {
+    res.status(400).json({ error: "workspace_id_required" });
+    return;
+  }
+  const packet = buildGenerationStrategyPacket(workspaceId, productId);
+  res.json({
+    ...packet,
+    structuredPrompt: compileStructuredGenerationPrompt(packet)
+  });
 });
 
 app.get("/workspaces/:workspaceId/snapshot", (req, res) => {
