@@ -2700,8 +2700,9 @@ function buildPresentationBriefState(workspaceId: string, productId?: string) {
   const customerState = buildCustomerBrainPneState(workspaceId, productId);
   const brandProfile = getWorkspaceBrandProfile(workspaceId);
   const savedBriefs = listBriefLibraryRecords(workspaceId, 18, productId);
-  const briefs = savedBriefs.length
-    ? savedBriefs
+  const preferredSavedBriefs = preferExplicitPresentationArtifacts(savedBriefs);
+  const briefs = preferredSavedBriefs.length
+    ? preferredSavedBriefs
     : synthesizeCreativeBriefs({
         workspaceId,
         productId,
@@ -2718,15 +2719,16 @@ function buildPresentationBriefState(workspaceId: string, productId?: string) {
     pneCombos: customerState.pneCombos,
     briefs,
     latestBrief: briefs[0] || null,
-    autoDerivedFromCustomer: savedBriefs.length === 0 && briefs.length > 0
+    autoDerivedFromCustomer: preferredSavedBriefs.length === 0 && briefs.length > 0
   };
 }
 
 function buildPresentationStoryboardState(workspaceId: string, productId?: string) {
   const briefState = buildPresentationBriefState(workspaceId, productId);
   const savedStoryboards = listStoryboardLibraryRecords(workspaceId, 18, productId);
-  const storyboards = savedStoryboards.length
-    ? savedStoryboards
+  const preferredSavedStoryboards = preferExplicitPresentationArtifacts(savedStoryboards);
+  const storyboards = preferredSavedStoryboards.length
+    ? preferredSavedStoryboards
     : synthesizeStoryboards({
         workspaceId,
         productId,
@@ -2738,7 +2740,7 @@ function buildPresentationStoryboardState(workspaceId: string, productId?: strin
     ...briefState,
     storyboards,
     latestStoryboard: storyboards[0] || null,
-    autoDerivedFromCustomer: savedStoryboards.length === 0 && storyboards.length > 0
+    autoDerivedFromCustomer: preferredSavedStoryboards.length === 0 && storyboards.length > 0
   };
 }
 
@@ -2752,6 +2754,201 @@ function buildGenerationStrategyPacket(workspaceId: string, productId?: string) 
     latestStoryboard: storyboardState.latestStoryboard || null,
     briefCount: Array.isArray(briefState.briefs) ? briefState.briefs.length : 0,
     storyboardCount: Array.isArray(storyboardState.storyboards) ? storyboardState.storyboards.length : 0
+  };
+}
+
+function isReplaceablePresentationArtifact(record: Record<string, unknown> | null | undefined) {
+  if (!record || typeof record !== "object") return false;
+  return record.autoDerivedFromCustomer === true || record.bootstrapSeeded === true || record.localFallback === true;
+}
+
+function preferExplicitPresentationArtifacts(records: Array<Record<string, unknown>>) {
+  const list = Array.isArray(records) ? records.filter((record) => record && typeof record === "object") : [];
+  const explicit = list.filter((record) => !isReplaceablePresentationArtifact(record));
+  return explicit.length ? explicit : list;
+}
+
+function buildCustomerPresentationDerivationKey(input: {
+  workspaceId: string;
+  productId?: string;
+  brandProfile: Record<string, unknown>;
+  customerState: ReturnType<typeof buildCustomerBrainPneState>;
+}) {
+  const selectedInsights = Array.isArray(input.customerState.selectedInsights)
+    ? input.customerState.selectedInsights.map((item) => ({
+        id: String(item.id || item.insightKey || "").trim(),
+        insight: String(item.refinedInsight || item.insight || item.text || "").trim(),
+        mentionCount: Number(item.mentionCount || 0) || 0,
+        uniqueUserCount: Number(item.uniqueUserCount || 0) || 0
+      }))
+    : [];
+  const personaItems = Array.isArray(input.customerState.personaItems)
+    ? input.customerState.personaItems.map((item) => ({
+        id: String(item.id || "").trim(),
+        persona: String(item.persona || "").trim(),
+        need: String(item.need || "").trim(),
+        emotion: String(item.emotion || "").trim(),
+        whyItMatters: String(item.whyItMatters || "").trim()
+      }))
+    : [];
+  const pneCombos = Array.isArray(input.customerState.pneCombos)
+    ? input.customerState.pneCombos.map((item) => ({
+        id: String(item.id || "").trim(),
+        persona: String(item.persona || "").trim(),
+        need: String(item.need || "").trim(),
+        emotion: String(item.emotion || "").trim(),
+        angle: String(item.angle || "").trim(),
+        isPrimary: item.isPrimary === true
+      }))
+    : [];
+  return createHash("sha1")
+    .update(
+      JSON.stringify({
+        workspaceId: input.workspaceId,
+        productId: String(input.productId || "").trim(),
+        brand: {
+          companyName: String(input.brandProfile.companyName || "").trim(),
+          category: String(input.brandProfile.category || "").trim(),
+          targetAudience: String(input.brandProfile.targetAudience || "").trim(),
+          productsCatalog: Array.isArray(input.brandProfile.productsCatalog)
+            ? input.brandProfile.productsCatalog.map((entry) => String(entry || "").trim()).filter(Boolean).slice(0, 12)
+            : []
+        },
+        selectedInsights,
+        personaItems,
+        pneCombos,
+        meta: input.customerState.meta && typeof input.customerState.meta === "object" ? input.customerState.meta : {}
+      })
+    )
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function stableAutoArtifactRoot(prefix: string, workspaceId: string, productId: string | undefined, slot: number) {
+  const scope = `${workspaceId}_${String(productId || "default").trim() || "default"}_${slot}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return `${prefix}_${scope || `default_${slot}`}`;
+}
+
+function persistAutoDerivedPresentationArtifacts(workspaceId: string, productId?: string, sourceNodeId = "customer") {
+  const brandProfile = getWorkspaceBrandProfile(workspaceId);
+  if (!brandProfile) return { skipped: true as const, reason: "brand_profile_missing" as const };
+  const customerState = buildCustomerBrainPneState(workspaceId, productId);
+  const selectedInsights = Array.isArray(customerState.selectedInsights) ? customerState.selectedInsights : [];
+  const personaItems = Array.isArray(customerState.personaItems) ? customerState.personaItems : [];
+  const pneCombos = Array.isArray(customerState.pneCombos) ? customerState.pneCombos : [];
+  if (!selectedInsights.length || !personaItems.length || !pneCombos.length) {
+    return { skipped: true as const, reason: "customer_state_incomplete" as const };
+  }
+  const existingBriefs = listBriefLibraryRecords(workspaceId, 80, productId);
+  const existingStoryboards = listStoryboardLibraryRecords(workspaceId, 80, productId);
+  const hasExplicitBrief = existingBriefs.some((record) => !isReplaceablePresentationArtifact(record));
+  const hasExplicitStoryboard = existingStoryboards.some((record) => !isReplaceablePresentationArtifact(record));
+  if (hasExplicitBrief || hasExplicitStoryboard) {
+    return { skipped: true as const, reason: "explicit_presentation_exists" as const };
+  }
+  const derivationKey = buildCustomerPresentationDerivationKey({ workspaceId, productId, brandProfile, customerState });
+  const latestBrief = existingBriefs[0] || null;
+  const latestStoryboard = existingStoryboards[0] || null;
+  if (
+    latestBrief &&
+    latestStoryboard &&
+    String(latestBrief.derivationKey || "").trim() === derivationKey &&
+    String(latestStoryboard.derivationKey || "").trim() === derivationKey
+  ) {
+    return { skipped: true as const, reason: "derivation_unchanged" as const, derivationKey };
+  }
+  const timestamp = nowIso();
+  const briefResult = synthesizeCreativeBriefs({
+    workspaceId,
+    productId,
+    nodeId: sourceNodeId,
+    selectedInsights,
+    personaItems,
+    pneCombos,
+    brandProfile,
+    limit: 2
+  });
+  const preparedBriefs = briefResult.briefs.map((brief, idx) => {
+    const rootId = stableAutoArtifactRoot("brief_auto", workspaceId, productId, idx + 1);
+    const autoCode = `${String(brief.code || `BRF-AUTO-${idx + 1}`).trim() || `BRF-AUTO-${idx + 1}`}-AUTO`;
+    const revision = buildNextPresentationArtifactRevision(existingBriefs, { ...brief, id: rootId, rootId, code: autoCode }, "brief_auto");
+    return {
+      ...brief,
+      id: revision.id,
+      rootId: revision.rootId,
+      previousId: revision.previousId || undefined,
+      version: revision.version,
+      code: autoCode,
+      createdAt: revision.createdAt,
+      updatedAt: timestamp,
+      autoDerivedFromCustomer: true,
+      derivationKey,
+      productId: productId || undefined
+    } as Record<string, unknown>;
+  });
+  preparedBriefs.forEach((brief) =>
+    addDataStoreRecord("db_briefs_library", workspaceId, sourceNodeId, productId, {
+      ...brief,
+      storedAt: timestamp
+    })
+  );
+  const storyboardResult = synthesizeStoryboards({
+    workspaceId,
+    productId,
+    nodeId: "storyboard",
+    briefs: preparedBriefs,
+    brandProfile,
+    limit: 2
+  });
+  const preparedStoryboards = storyboardResult.storyboards.map((storyboard, idx) => {
+    const rootId = stableAutoArtifactRoot("storyboard_auto", workspaceId, productId, idx + 1);
+    const autoCode = `${String(storyboard.code || `SB-AUTO-${idx + 1}`).trim() || `SB-AUTO-${idx + 1}`}-AUTO`;
+    const revision = buildNextPresentationArtifactRevision(
+      existingStoryboards,
+      { ...storyboard, id: rootId, rootId, code: autoCode },
+      "storyboard_auto"
+    );
+    return {
+      ...storyboard,
+      id: revision.id,
+      rootId: revision.rootId,
+      previousId: revision.previousId || undefined,
+      version: revision.version,
+      code: autoCode,
+      createdAt: revision.createdAt,
+      updatedAt: timestamp,
+      autoDerivedFromCustomer: true,
+      derivationKey,
+      productId: productId || undefined
+    } as Record<string, unknown>;
+  });
+  preparedStoryboards.forEach((storyboard) => {
+    addDataStoreRecord("db_storyboard_library", workspaceId, "storyboard", productId, {
+      ...storyboard,
+      storedAt: timestamp
+    });
+    addDataStoreRecord("db_scripts_library", workspaceId, "storyboard", productId, {
+      storyboardId: String(storyboard.id || "").trim(),
+      storyboardCode: String(storyboard.code || "").trim(),
+      briefId: String(storyboard.briefId || "").trim(),
+      briefCode: String(storyboard.briefCode || "").trim(),
+      title: String(storyboard.title || "").trim(),
+      format: String(storyboard.format || "").trim(),
+      script: isPlainObject(storyboard.script) ? (storyboard.script as Record<string, unknown>) : {},
+      audioDirection: isPlainObject(storyboard.audioDirection) ? (storyboard.audioDirection as Record<string, unknown>) : {},
+      createdAt: String(storyboard.createdAt || "").trim(),
+      storedAt: timestamp
+    });
+  });
+  return {
+    skipped: false as const,
+    derivationKey,
+    briefs: preparedBriefs,
+    storyboards: preparedStoryboards
   };
 }
 
@@ -5062,6 +5259,9 @@ app.post("/agents/persona-needs-emotions", async (req, res) => {
       rows: Array.isArray(result.items) ? (result.items as Array<Record<string, unknown>>) : [],
       meta: { nodeId }
     });
+    try {
+      persistAutoDerivedPresentationArtifacts(workspaceId, productId, nodeId);
+    } catch {}
     res.json({ ...result, batchId, updatedAt: updated.updatedAt });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "persona_needs_emotions_failed" });
@@ -5096,6 +5296,9 @@ app.post("/agents/pne-framework", (req, res) => {
       rows: Array.isArray(result.pneCombos) ? (result.pneCombos as Array<Record<string, unknown>>) : [],
       meta: { nodeId }
     });
+    try {
+      persistAutoDerivedPresentationArtifacts(workspaceId, productId, nodeId);
+    } catch {}
     res.json({ ...result, batchId, updatedAt: updated.updatedAt });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "pne_framework_failed" });
@@ -5454,6 +5657,9 @@ app.post("/workspaces/:workspaceId/customer-brain/insights", (req, res) => {
       lastShortlistSource: "manual"
     }
   });
+  try {
+    persistAutoDerivedPresentationArtifacts(workspaceId, productId, "customer");
+  } catch {}
   res.json({ ok: true, updatedAt: state.updatedAt, selectedInsights: state.selectedInsights });
 });
 
@@ -5489,6 +5695,9 @@ app.put("/workspaces/:workspaceId/customer-brain/persona-items", (req, res) => {
     rows: Array.isArray(state.personaItems) ? (state.personaItems as Array<Record<string, unknown>>) : [],
     meta: {}
   });
+  try {
+    persistAutoDerivedPresentationArtifacts(workspaceId, productId, "persona_needs_emotions");
+  } catch {}
   res.json({ items: state.personaItems, updatedAt: state.updatedAt, batchId });
 });
 
@@ -5526,6 +5735,9 @@ app.put("/workspaces/:workspaceId/customer-brain/pne-combos", (req, res) => {
     rows: Array.isArray(state.pneCombos) ? (state.pneCombos as Array<Record<string, unknown>>) : [],
     meta: { activePneId }
   });
+  try {
+    persistAutoDerivedPresentationArtifacts(workspaceId, productId, "pne_framework");
+  } catch {}
   res.json({ pneCombos: state.pneCombos, updatedAt: state.updatedAt, batchId });
 });
 
