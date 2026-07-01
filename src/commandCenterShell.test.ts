@@ -111,6 +111,14 @@ describe("desktop command center shell", () => {
     indexOfOrThrow("Starter PNE map ready");
   });
 
+  it("hydrates persisted brand node run history from the backend", () => {
+    indexOfOrThrow("let brandProfileRunsCache={brand_kit:[],brand_guidelines:[]};");
+    indexOfOrThrow("function applyBrandProfileRunsToCanvas(nodeId, runs){");
+    indexOfOrThrow("async function loadBrandProfileRuns(force){");
+    indexOfOrThrow("/brand-profile/runs?limit=24");
+    indexOfOrThrow("await loadBrandProfileRuns(true);");
+  });
+
   it("surfaces brand context in brief and storyboard cards", () => {
     indexOfOrThrow("function presentationBrandContextPanel(profile,opts){");
     indexOfOrThrow("Brand Context");
@@ -173,10 +181,28 @@ describe("desktop command center shell", () => {
   });
 
   it("renders persisted generation artifacts inside the asset generator review cards", () => {
-    indexOfOrThrow("function assetArtifactCardMarkup(artifact,index){");
-    indexOfOrThrow("function assetRunGalleryMarkup(run){");
+    indexOfOrThrow("function assetArtifactCardMarkup(node,run,runIndex,artifact,index){");
+    indexOfOrThrow("function assetRunGalleryMarkup(node,run,runIndex){");
     indexOfOrThrow("Latest outputs");
     indexOfOrThrow("more saved in this run");
-    indexOfOrThrow("${assetRunGalleryMarkup(r)}");
+    indexOfOrThrow("${assetRunGalleryMarkup(n,r,runIndex)}");
+  });
+
+  it("persists preferred generated outputs on the asset generator", () => {
+    indexOfOrThrow("function normalizeSelectedOutputs(value){");
+    indexOfOrThrow("function toggleSelectedOutput(event,nodeId,runIndex,artifactIndex){");
+    indexOfOrThrow("function removeSelectedOutput(nodeId,key){");
+    indexOfOrThrow("Preferred outputs");
+    indexOfOrThrow("Selected for workflow");
+    indexOfOrThrow("state.selectedOutputs=deepClone(normalizeSelectedOutputs(n.selectedOutputs))");
+  });
+
+  it("surfaces a downstream handoff from selected outputs into the performance brain", () => {
+    indexOfOrThrow("function assetSelectionHandoff(node){");
+    indexOfOrThrow("function assetSelectionHandoffPanel(node){");
+    indexOfOrThrow("function performanceHubContextPanel(n){");
+    indexOfOrThrow("Downstream handoff");
+    indexOfOrThrow("Launch handoff ready");
+    indexOfOrThrow("Connect launch stack");
   });
 });

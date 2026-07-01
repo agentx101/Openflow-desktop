@@ -1903,6 +1903,7 @@ function clearOnboardingSeedState(options){
   try{ localStorage.removeItem(ONBOARDING_GENERATE_COUNT_KEY); }catch(_e){}
   try{ localStorage.removeItem(onboardingGenerateCountKey()); }catch(_e){}
   try{ brandProfileCache=null; }catch(_e){}
+  try{ brandProfileRunsCache={brand_kit:[],brand_guidelines:[]}; brandProfileRunsLoadedAt=0; }catch(_e){}
   try{ customerBrainStateCache=null; }catch(_e){}
   try{ generationStrategyPacketCache=null; }catch(_e){}
   try{ presentationBriefStateCache=null; }catch(_e){}
@@ -2161,7 +2162,125 @@ function assetArtifactMetaLine(artifact){
   if(Number(metadata.width||0)>0 && Number(metadata.height||0)>0) parts.push(`${Number(metadata.width)}×${Number(metadata.height)}`);
   return parts.filter(Boolean).slice(0,3).join(' · ');
 }
-function assetArtifactCardMarkup(artifact,index){
+function normalizeSelectedOutputs(value){
+  return Array.isArray(value)
+    ? value.filter(item=>item&&typeof item==='object').map(item=>{
+        const row=item&&typeof item==='object'?item:{};
+        return {
+          key:String(row.key||'').trim(),
+          label:String(row.label||'').trim(),
+          type:String(row.type||'asset').trim(),
+          uri:String(row.uri||'').trim(),
+          previewUri:String(row.previewUri||'').trim(),
+          runId:String(row.runId||'').trim(),
+          wfCode:String(row.wfCode||'').trim(),
+          genCode:String(row.genCode||'').trim()
+        };
+      }).filter(item=>item.key)
+    : [];
+}
+function selectedOutputKey(run,artifact,index){
+  const step=(run&&run.data&&run.data.step&&typeof run.data.step==='object')?run.data.step:{};
+  const artifactId=String(artifact&&artifact.id||'').trim();
+  const stepId=String(step.id||'').trim();
+  const fallbackUri=assetArtifactUri(artifact);
+  return artifactId || [String(run&&run.genCode||'').trim(),stepId,String(index),fallbackUri].filter(Boolean).join('::');
+}
+function selectedOutputsForNode(node){
+  if(!node||typeof node!=='object') return [];
+  if(!Array.isArray(node.selectedOutputs)) node.selectedOutputs=normalizeSelectedOutputs(node.selectedOutputs);
+  return node.selectedOutputs;
+}
+function isSelectedOutput(node,key){
+  return selectedOutputsForNode(node).some(item=>String(item&&item.key||'').trim()===String(key||'').trim());
+}
+function selectedOutputSummary(run,artifact,index){
+  const label=String(
+    (artifact&&artifact.metadata&&artifact.metadata.assetName)
+    || (artifact&&artifact.metadata&&artifact.metadata.fileName)
+    || artifact&&artifact.id
+    || `${assetArtifactTypeLabel(artifact&&artifact.type)} ${index+1}`
+  ).trim();
+  return {
+    key:selectedOutputKey(run,artifact,index),
+    label,
+    type:String(artifact&&artifact.type||'asset').trim(),
+    uri:String(artifact&&artifact.uri||'').trim(),
+    previewUri:String(artifact&&artifact.previewUri||'').trim(),
+    runId:String(run&&run.genCode||'').trim(),
+    wfCode:String(run&&run.wfCode||'').trim(),
+    genCode:String(run&&run.genCode||'').trim()
+  };
+}
+function selectedOutputsPanelMarkup(node){
+  const rows=selectedOutputsForNode(node);
+  if(!rows.length) return '';
+  return `<div style="margin-top:10px;border:1px solid rgba(147,197,253,.18);border-radius:12px;padding:10px;background:rgba(59,130,246,.07);display:grid;gap:7px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+      <div style="font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#93C5FD">Preferred outputs</div>
+      <div style="font:600 8px sans-serif;color:#DBEAFE">${rows.length} selected</div>
+    </div>
+    <div style="display:grid;gap:6px">
+      ${rows.slice(0,4).map(item=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)">
+        <div style="min-width:0">
+          <div style="font:600 9px/1.35 sans-serif;color:#F8FAFC;word-break:break-word">${esc(item.label||'Selected output')}</div>
+          <div style="font:8px/1.4 sans-serif;color:#94A3B8">${esc(assetArtifactTypeLabel(item.type||'asset'))}${item.wfCode?` · ${esc(item.wfCode)}`:''}</div>
+        </div>
+        <button class="brief-btn" onclick="event.stopPropagation();removeSelectedOutput('${escAttr(node.id)}','${escAttr(item.key)}')" style="padding:0 8px;min-width:auto">Remove</button>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+async function persistCurrentCanvasStateToBackend(opts){
+  const options=opts&&typeof opts==='object'?opts:{};
+  try{
+    const ctx=await ensureBackendProductContext();
+    const doc=toBackendCanvasDoc();
+    await withApiBase(`/workspaces/${encodeURIComponent(ctx.workspaceId)}/products/${encodeURIComponent(ctx.productId)}/canvas`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json',...apiAuthHeaders()},
+      body:JSON.stringify(doc)
+    });
+    return true;
+  }catch(err){
+    if(!options.silent) throw err;
+    return false;
+  }
+}
+function queueCanvasPersist(){
+  void persistCurrentCanvasStateToBackend({silent:true});
+}
+function toggleSelectedOutput(event,nodeId,runIndex,artifactIndex){
+  event&&event.stopPropagation&&event.stopPropagation();
+  const node=gn(nodeId);
+  if(!node||!Array.isArray(node.runs)) return;
+  const run=node.runs[runIndex];
+  const artifacts=Array.isArray(run&&run.data&&run.data.artifacts)?run.data.artifacts:[];
+  const artifact=artifacts[artifactIndex];
+  if(!artifact) return;
+  const summary=selectedOutputSummary(run,artifact,artifactIndex);
+  const existing=selectedOutputsForNode(node);
+  const has=isSelectedOutput(node,summary.key);
+  node.selectedOutputs=has
+    ? existing.filter(item=>String(item&&item.key||'').trim()!==summary.key)
+    : [summary,...existing.filter(item=>String(item&&item.key||'').trim()!==summary.key)].slice(0,8);
+  node.notifCount=Math.max(0,Number(node.notifCount||0));
+  refreshNode(node.id);
+  syncProjectState();
+  queueCanvasPersist();
+  showToast(node.id,has?'Removed preferred output':'Added preferred output');
+}
+function removeSelectedOutput(nodeId,key){
+  const node=gn(nodeId);
+  if(!node) return;
+  const next=selectedOutputsForNode(node).filter(item=>String(item&&item.key||'').trim()!==String(key||'').trim());
+  node.selectedOutputs=next;
+  refreshNode(node.id);
+  syncProjectState();
+  queueCanvasPersist();
+  showToast(node.id,'Removed preferred output');
+}
+function assetArtifactCardMarkup(node,run,runIndex,artifact,index){
   if(!artifact||typeof artifact!=='object') return '';
   const uri=assetArtifactUri(artifact);
   const type=String(artifact.type||'asset').trim().toLowerCase();
@@ -2173,6 +2292,8 @@ function assetArtifactCardMarkup(artifact,index){
     || `${label} ${index+1}`
   ).trim();
   const metaLine=assetArtifactMetaLine(artifact);
+  const selectionKey=selectedOutputKey(run,artifact,index);
+  const selected=isSelectedOutput(node,selectionKey);
   let preview=`<div style="height:86px;border-radius:10px;border:1px dashed rgba(255,255,255,.10);background:rgba(255,255,255,.03);display:flex;align-items:center;justify-content:center;font:700 9px var(--mono);letter-spacing:.08em;color:#94A3B8">${esc(label)}</div>`;
   if(uri){
     if(type==='image'){
@@ -2192,12 +2313,13 @@ function assetArtifactCardMarkup(artifact,index){
       <div style="font:600 9px/1.35 sans-serif;color:#F8FAFC;word-break:break-word">${esc(title)}</div>
       ${metaLine?`<div style="font:8px/1.4 sans-serif;color:#94A3B8">${esc(metaLine)}</div>`:''}
     </div>
+    <button class="brief-btn" style="padding:0 10px;min-width:auto;${selected?'background:#2563EB;color:#fff;border-color:rgba(147,197,253,.45)':''}" onclick="toggleSelectedOutput(event,'${escAttr(node.id)}',${Number(runIndex)||0},${Number(index)||0})">${selected?'Selected for workflow':'Use this output'}</button>
   </div>`;
 }
-function assetRunGalleryMarkup(run){
+function assetRunGalleryMarkup(node,run,runIndex){
   const artifacts=Array.isArray(run&&run.data&&run.data.artifacts)?run.data.artifacts.filter(item=>item&&typeof item==='object'):[];
   if(!artifacts.length) return '';
-  const shown=artifacts.slice(0,4).map((artifact,index)=>assetArtifactCardMarkup(artifact,index)).join('');
+  const shown=artifacts.slice(0,4).map((artifact,index)=>assetArtifactCardMarkup(node,run,runIndex,artifact,index)).join('');
   const remaining=artifacts.length>4?`<div style="font:8px/1.4 sans-serif;color:#94A3B8">+${artifacts.length-4} more saved in this run</div>`:'';
   return `<div style="margin-top:9px;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;background:rgba(255,255,255,.025);display:grid;gap:8px">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
@@ -2425,6 +2547,7 @@ function configureInitialProjectShell(){
 }
 function resetCanvasCachesAndShortlists(){
   try{ brandProfileCache=null; }catch(_e){}
+  try{ brandProfileRunsCache={brand_kit:[],brand_guidelines:[]}; brandProfileRunsLoadedAt=0; }catch(_e){}
   try{ customerBrainStateCache=null; }catch(_e){}
   try{ generationStrategyPacketCache=null; }catch(_e){}
   try{ presentationBriefStateCache=null; }catch(_e){}
@@ -3143,7 +3266,8 @@ function mapBackendNodeToCanvasNode(node){
       runs:Array.isArray(uiState&&uiState.runs)?uiState.runs:(Array.isArray(base&&base.runs)?base.runs:[]),
       sync:(uiState&&uiState.sync)||((base&&base.sync)||subtitle||'ready'),
       generationHandoff:(uiState&&uiState.generationHandoff)||null,
-      generationHandoffSource:(uiState&&uiState.generationHandoffSource)||''
+      generationHandoffSource:(uiState&&uiState.generationHandoffSource)||'',
+      selectedOutputs:normalizeSelectedOutputs(uiState&&uiState.selectedOutputs)
     };
   }
 
@@ -3485,6 +3609,96 @@ function brandHubContextPanel(n){
     </div>
   </div>`;
 }
+function assetSelectionHandoff(node){
+  const rows=selectedOutputsForNode(node);
+  if(!rows.length) return null;
+  const typeCounts={image:0,video:0,audio:0,music:0,asset:0};
+  rows.forEach(item=>{
+    const type=String(item&&item.type||'asset').trim().toLowerCase();
+    if(Object.prototype.hasOwnProperty.call(typeCounts,type)) typeCounts[type]+=1;
+    else typeCounts.asset+=1;
+  });
+  const handoff=(node&&node.generationHandoff&&typeof node.generationHandoff==='object')?node.generationHandoff:{};
+  const labels=[];
+  if(typeCounts.image) labels.push(`${typeCounts.image} image${typeCounts.image===1?'':'s'}`);
+  if(typeCounts.video) labels.push(`${typeCounts.video} video${typeCounts.video===1?'':'s'}`);
+  if(typeCounts.audio) labels.push(`${typeCounts.audio} voice${typeCounts.audio===1?'':'s'}`);
+  if(typeCounts.music) labels.push(`${typeCounts.music} music`);
+  if(!labels.length) labels.push(`${rows.length} selected output${rows.length===1?'':'s'}`);
+  return {
+    total:rows.length,
+    typeSummary:labels.join(' · '),
+    briefCode:String(handoff.briefCode||'').trim(),
+    storyboardCode:String(handoff.storyboardCode||'').trim(),
+    leadAngle:String(handoff.leadAngle||'').trim(),
+    selectedInsightCount:Number(handoff.selectedInsightCount||0)||0,
+    mentionCount:Number(handoff.mentionCount||0)||0,
+    uniqueUserCount:Number(handoff.uniqueUserCount||0)||0,
+    topLabels:rows.slice(0,3).map(item=>String(item&&item.label||'').trim()).filter(Boolean),
+    workflowCodes:Array.from(new Set(rows.map(item=>String(item&&item.wfCode||'').trim()).filter(Boolean))).slice(0,3)
+  };
+}
+function assetSelectionHandoffPanel(node){
+  const summary=assetSelectionHandoff(node);
+  if(!summary) return '';
+  return `<div style="margin-top:10px;border:1px solid rgba(236,72,153,.18);border-radius:12px;padding:10px;background:linear-gradient(180deg,rgba(80,7,36,.55),rgba(255,255,255,.03));display:grid;gap:7px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+      <div style="font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#FDA4AF">Downstream handoff</div>
+      <div style="font:600 8px sans-serif;color:#FBCFE8">${summary.total} ready</div>
+    </div>
+    <div style="font:9px/1.45 sans-serif;color:#F8FAFC">${esc(summary.typeSummary)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${summary.briefCode?`<span style="display:inline-flex;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:8px sans-serif;color:#FCE7F3">${esc(summary.briefCode)}</span>`:''}
+      ${summary.storyboardCode?`<span style="display:inline-flex;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:8px sans-serif;color:#FCE7F3">${esc(summary.storyboardCode)}</span>`:''}
+      ${summary.workflowCodes.map(code=>`<span style="display:inline-flex;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:8px sans-serif;color:#FCE7F3">${esc(code)}</span>`).join('')}
+    </div>
+    ${summary.leadAngle?`<div style="font:8.5px/1.45 sans-serif;color:#FBCFE8">Lead angle: ${esc(summary.leadAngle)}</div>`:''}
+    ${summary.topLabels.length?`<div style="display:grid;gap:4px">${summary.topLabels.map(label=>`<div style="font:8.5px/1.45 sans-serif;color:#E5E7EB">• ${esc(label)}</div>`).join('')}</div>`:''}
+  </div>`;
+}
+function performanceHubContextPanel(n){
+  if(n.id!=='performance') return '';
+  const assetNode=gn('assetgen');
+  const summary=assetSelectionHandoff(assetNode);
+  if(!summary){
+    return `<div style="padding:0 12px 12px">
+      <div style="border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;background:rgba(255,255,255,.03)">
+        <div style="font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#F9A8D4;margin-bottom:8px">Performance Brain</div>
+        <div style="font:11px/1.5 sans-serif;color:#D5DBE7">Select preferred outputs in Asset Generator to prepare launch and measurement handoff.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <button class="brief-btn" onclick="event.stopPropagation();openNodePreviewAndFocus('assetgen')">Open Generator</button>
+          <button class="brief-btn" onclick="event.stopPropagation();openLeftSection('connections')">Open Connections</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return `<div style="padding:0 12px 12px">
+    <div style="border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;background:linear-gradient(180deg,rgba(131,24,67,.18),rgba(255,255,255,.03))">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#F9A8D4;margin-bottom:6px">Performance Brain</div>
+          <div style="font:700 15px var(--display);color:#fff">Launch handoff ready</div>
+          <div style="font:10px/1.45 sans-serif;color:#FBCFE8">${esc(summary.typeSummary)}</div>
+        </div>
+        <div style="padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#FCE7F3">${summary.total} selected</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">
+        ${brandMetricPill('Assets',summary.total)}
+        ${brandMetricPill('Insights',summary.selectedInsightCount||'—')}
+        ${brandMetricPill('Users',summary.uniqueUserCount||'—')}
+      </div>
+      ${summary.leadAngle?`<div style="margin-bottom:10px;font:10px/1.55 sans-serif;color:#E6EDF9">Lead angle to test first: ${esc(summary.leadAngle)}</div>`:''}
+      ${summary.topLabels.length?`<div style="border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;background:rgba(255,255,255,.025);margin-bottom:10px">
+        <div style="font:700 9px sans-serif;color:#fff;margin-bottom:6px">Selected creative outputs</div>
+        ${summary.topLabels.map(label=>`<div style="font:9px/1.45 sans-serif;color:#D5DBE7;margin-bottom:4px">• ${esc(label)}</div>`).join('')}
+      </div>`:''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="brief-btn" onclick="event.stopPropagation();openNodePreviewAndFocus('assetgen')">Review selections</button>
+        <button class="brief-btn" onclick="event.stopPropagation();openLeftSection('connections')">Connect launch stack</button>
+      </div>
+    </div>
+  </div>`;
+}
 function mkChatPanel(n){
   const msgs=n.msgs.map(m=>{
     if(m.r==='u') return `<div class="msg-u-row"><div class="msg-u">${esc(m.c)}</div></div>`;
@@ -3505,6 +3719,7 @@ function mkChatPanel(n){
 </div>
 <div class="chat-thread" id="thr-${n.id}">${msgs}${typing}</div>
 ${brandHubContextPanel(n)}
+${performanceHubContextPanel(n)}
 <div class="chat-bar">
   <input class="chat-inp" id="inp-${n.id}" placeholder="Ask ${esc(n.name.split(' ')[0])}…"
     onmousedown="event.stopPropagation()" onkeydown="chatKey(event,'${n.id}')">
@@ -3850,14 +4065,14 @@ function mkOutput(n){
   const runList=isAsset
     ? `<div class="out-runs">${
         (n.runs&&n.runs.length
-          ? n.runs.slice(0,8).map(r=>`
+          ? n.runs.slice(0,8).map((r,runIndex)=>`
             <div class="out-run">
               <div class="out-run-top">
                 <span class="out-run-code">${esc(r.genCode||'GEN-UNTRACKED')}</span>
                 <span class="out-run-wf">${esc(r.wfCode||'WF-UNKNOWN')} · ${esc(r.wfName||'workflow')}</span>
               </div>
               <div class="out-run-meta">${esc(r.date||'')} · ${esc(r.count||'1')} asset${String(r.count||'1')==='1'?'':'s'}</div>
-              ${assetRunGalleryMarkup(r)}
+              ${assetRunGalleryMarkup(n,r,runIndex)}
             </div>`).join('')
           : `<div class="out-run"><div class="out-run-meta">No generations yet</div></div>`)
       }</div>`
@@ -3867,6 +4082,8 @@ function mkOutput(n){
     onclick="event.stopPropagation();runOutputFlow('${n.id}')">${n.flowState==='running'?'Running Flow…':'Run Upstream Flow'}</button>`;
   const onboardingPanel=(isAsset&&onboardingSeedData)?onboardingPresetPanel():'';
   const workflowBanner=isAsset?presentationWorkflowStatusBanner('generator'):'';
+  const selectedOutputsPanel=isAsset?selectedOutputsPanelMarkup(n):'';
+  const downstreamHandoffPanel=isAsset?assetSelectionHandoffPanel(n):'';
   const cardCls=n.id==='assetgen'?'output-card asset-big':'output-card';
   return `
 <div class="${cardCls}">
@@ -3884,6 +4101,8 @@ function mkOutput(n){
   ${workflowBanner}
   ${providerStatusPanel}
   ${handoffPanel}
+  ${selectedOutputsPanel}
+  ${downstreamHandoffPanel}
   ${runList}
 </div>`;
 }
@@ -4351,6 +4570,7 @@ async function saveBrandKitEdits(event){
     if(saved&&saved.brandUrl){
       brandProfileCache=saved;
       applyBrandProfileToCanvas(saved,'brand kit saved',{appendRun:false});
+      await loadBrandProfileRuns(true);
       syncProjectState();
       renderAll();
     }
@@ -4373,6 +4593,7 @@ async function saveBrandGuidelinesEdits(event){
     if(saved&&saved.brandUrl){
       brandProfileCache=saved;
       applyBrandProfileToCanvas(saved,'guidelines saved',{appendRun:false});
+      await loadBrandProfileRuns(true);
       syncProjectState();
       renderAll();
     }
@@ -6923,6 +7144,8 @@ async function chargeCredits(units){
 const AGENT_SOURCE_IDS=new Set(['reddit','persona_needs_emotions','pne_framework']);
 const REDDIT_DEFAULT_FREQUENCY_HOURS=24;
 let brandProfileCache=null;
+let brandProfileRunsCache={brand_kit:[],brand_guidelines:[]};
+let brandProfileRunsLoadedAt=0;
 let customerBrainStateCache=null;
 let presentationBriefStateCache=null;
 let presentationStoryboardStateCache=null;
@@ -7067,6 +7290,7 @@ async function ensureBrandProfile(){
     if(incomingHasContent){
       brandProfileCache=existing;
       applyBrandProfileToCanvas(brandProfileCache,'saved profile');
+      await loadBrandProfileRuns(false);
       if(ONBOARDING_FIRST_LOAD){
         setStatusBarLive('Brand kit and guidelines loaded');
       }
@@ -7085,6 +7309,7 @@ async function ensureBrandProfile(){
     const profile=await res.json();
     brandProfileCache=profile;
     applyBrandProfileToCanvas(brandProfileCache,'website analysis');
+    await loadBrandProfileRuns(true);
     if(ONBOARDING_FIRST_LOAD){
       setStatusBarLive('Brand kit and guidelines loaded');
     }
@@ -7978,6 +8203,8 @@ function upsertBrandStateRun(node, profile, nextRun, appendRun){
 }
 function clearBrandProfileState(sourceLabel){
   brandProfileCache=null;
+  brandProfileRunsCache={brand_kit:[],brand_guidelines:[]};
+  brandProfileRunsLoadedAt=0;
   const hub=gn('brand');
   if(hub&&Array.isArray(hub.msgs)&&hub.msgs.length){
     const lines=[
@@ -8047,6 +8274,62 @@ function applyBrandProfileToCanvas(profile, sourceLabel, opts){
     refreshNode(brandGuideNode.id);
   }
   updateBrandHubSummary(profile);
+}
+function applyBrandProfileRunsToCanvas(nodeId, runs){
+  const node=ensureSourceNodeForHub('brand',nodeId);
+  if(!node) return;
+  const list=Array.isArray(runs)?runs:[];
+  node.runs=list.map(run=>{
+    const profile=run&&run.profileSnapshot&&typeof run.profileSnapshot==='object' ? run.profileSnapshot : brandProfileCache || {};
+    const runAt=String(run&&run.runAt||'').trim();
+    const parsed=Date.parse(runAt);
+    return {
+      runId:String(run&&run.id||'').trim(),
+      date:Number.isFinite(parsed)?new Date(parsed).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Saved',
+      summary:String(run&&run.summary||'').trim() || (nodeId==='brand_kit'?'Brand kit loaded':'Messaging system mapped'),
+      count:String(run&&run.countLabel||'').trim() || '1 signal',
+      url:String(profile&&profile.brandUrl||'').trim() || '#',
+      _runAtIso:runAt,
+      data:{
+        profile,
+        view:nodeId,
+        sourceLabel:String(run&&run.sourceLabel||'').trim(),
+        meta:run&&run.meta&&typeof run.meta==='object'?run.meta:{}
+      }
+    };
+  }).slice(0,12);
+  if(list[0]){
+    node.connected=true;
+    node.status='ready';
+    node.sync=String(list[0].summary||node.sync||'').trim() || node.sync;
+  }
+  refreshNode(node.id);
+}
+async function loadBrandProfileRuns(force){
+  const now=Date.now();
+  if(!force && brandProfileRunsLoadedAt && (now-brandProfileRunsLoadedAt)<15000) return brandProfileRunsCache;
+  const workspaceId=workspaceIdForApi();
+  if(!workspaceId) return brandProfileRunsCache;
+  try{
+    const res=await withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/brand-profile/runs?limit=24`,{
+      headers:{...apiAuthHeaders()}
+    });
+    const rows=await res.json();
+    const grouped={brand_kit:[],brand_guidelines:[]};
+    if(Array.isArray(rows)){
+      rows.forEach(run=>{
+        const nodeId=String(run&&run.nodeId||'').trim();
+        if(nodeId==='brand_kit' || nodeId==='brand_guidelines') grouped[nodeId].push(run);
+      });
+    }
+    brandProfileRunsCache=grouped;
+    brandProfileRunsLoadedAt=Date.now();
+    applyBrandProfileRunsToCanvas('brand_kit',grouped.brand_kit);
+    applyBrandProfileRunsToCanvas('brand_guidelines',grouped.brand_guidelines);
+    return brandProfileRunsCache;
+  }catch(_e){
+    return brandProfileRunsCache;
+  }
 }
 async function loadProviderConnections(force=false){
   flushPendingRuntimeScopeReset();
@@ -8200,6 +8483,7 @@ function persistedUiStateForNode(n){
     if(n.sync) state.sync=String(n.sync||'');
     if(n.generationHandoff&&typeof n.generationHandoff==='object') state.generationHandoff=deepClone(n.generationHandoff);
     if(n.generationHandoffSource) state.generationHandoffSource=String(n.generationHandoffSource||'');
+    if(Array.isArray(n.selectedOutputs)&&n.selectedOutputs.length) state.selectedOutputs=deepClone(normalizeSelectedOutputs(n.selectedOutputs));
     return state;
   }
   return state;
@@ -8598,6 +8882,7 @@ async function hydrateAfterNodeOrchestration(nodeIds){
   if(needsBrand){
     brandProfileCache=null;
     await ensureBrandProfile();
+    await loadBrandProfileRuns(true);
   }
   if(needsCustomer){
     await hydrateAllRedditRunHistory();
