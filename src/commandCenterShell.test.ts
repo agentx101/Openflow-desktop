@@ -119,6 +119,15 @@ describe("desktop command center shell", () => {
     indexOfOrThrow("await loadBrandProfileRuns(true);");
   });
 
+  it("hydrates persisted persona and pne run history from the backend", () => {
+    indexOfOrThrow("let customerStrategyRunsCache={persona:[],pne:[]};");
+    indexOfOrThrow("function applyCustomerStrategyRunsToCanvas(kind,runs){");
+    indexOfOrThrow("async function loadCustomerStrategyRuns(force){");
+    indexOfOrThrow("/customer-brain/persona-runs");
+    indexOfOrThrow("/customer-brain/pne-runs");
+    indexOfOrThrow("await loadCustomerStrategyRuns(true);");
+  });
+
   it("surfaces brand context in brief and storyboard cards", () => {
     indexOfOrThrow("function presentationBrandContextPanel(profile,opts){");
     indexOfOrThrow("Brand Context");

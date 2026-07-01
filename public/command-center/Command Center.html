@@ -1905,6 +1905,7 @@ function clearOnboardingSeedState(options){
   try{ brandProfileCache=null; }catch(_e){}
   try{ brandProfileRunsCache={brand_kit:[],brand_guidelines:[]}; brandProfileRunsLoadedAt=0; }catch(_e){}
   try{ customerBrainStateCache=null; }catch(_e){}
+  try{ customerStrategyRunsCache={persona:[],pne:[]}; customerStrategyRunsLoadedAt=0; }catch(_e){}
   try{ generationStrategyPacketCache=null; }catch(_e){}
   try{ presentationBriefStateCache=null; }catch(_e){}
   try{ presentationStoryboardStateCache=null; }catch(_e){}
@@ -2549,6 +2550,7 @@ function resetCanvasCachesAndShortlists(){
   try{ brandProfileCache=null; }catch(_e){}
   try{ brandProfileRunsCache={brand_kit:[],brand_guidelines:[]}; brandProfileRunsLoadedAt=0; }catch(_e){}
   try{ customerBrainStateCache=null; }catch(_e){}
+  try{ customerStrategyRunsCache={persona:[],pne:[]}; customerStrategyRunsLoadedAt=0; }catch(_e){}
   try{ generationStrategyPacketCache=null; }catch(_e){}
   try{ presentationBriefStateCache=null; }catch(_e){}
   try{ presentationStoryboardStateCache=null; }catch(_e){}
@@ -5875,6 +5877,7 @@ async function savePersonaEdits(event,nodeId){
       personaUpdatedAt:String(result.updatedAt||result.batchId||new Date().toISOString())
     })
   },'persona edit');
+  await loadCustomerStrategyRuns(true);
   document.getElementById('rd-body').innerHTML=buildMockUI(node,{summary:summarizePersonaResult(result),data:result,runId:String(result.batchId||'')});
   showToast('customer','Persona map saved');
 }
@@ -5919,6 +5922,7 @@ async function savePneEdits(event,nodeId){
       activePneId
     })
   },'pne edit');
+  await loadCustomerStrategyRuns(true);
   document.getElementById('rd-body').innerHTML=buildMockUI(node,{summary:summarizePneResult({...result,pneCombos:nextCombos}),data:{...result,pneCombos:nextCombos},runId:String(result.batchId||'')});
   showToast('customer','PNE framework saved');
 }
@@ -7147,6 +7151,8 @@ let brandProfileCache=null;
 let brandProfileRunsCache={brand_kit:[],brand_guidelines:[]};
 let brandProfileRunsLoadedAt=0;
 let customerBrainStateCache=null;
+let customerStrategyRunsCache={persona:[],pne:[]};
+let customerStrategyRunsLoadedAt=0;
 let presentationBriefStateCache=null;
 let presentationStoryboardStateCache=null;
 let generationStrategyPacketCache=null;
@@ -7729,16 +7735,73 @@ async function loadCustomerBrainState(){
       stateHasCustomerBrainContent(onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.customerBrainState);
     if(shouldPreserveOnboardingFallbackState(incomingHasContent,existingHasContent)){
       const preserved=customerBrainStateCache || (onboardingSeedData&&onboardingSeedData.metadata&&onboardingSeedData.metadata.customerBrainState) || null;
-      if(preserved) applyCustomerBrainState(preserved,'preserved onboarding state');
+      if(preserved){
+        applyCustomerBrainState(preserved,'preserved onboarding state');
+        await loadCustomerStrategyRuns(false);
+      }
       return preserved;
     }
     if(incomingHasContent){
       applyCustomerBrainState(state,'saved workspace state');
+      await loadCustomerStrategyRuns(false);
       return state;
     }
     clearCustomerBrainState('empty workspace state');
   }catch{}
   return null;
+}
+function applyCustomerStrategyRunsToCanvas(kind,runs){
+  const sourceId=kind==='persona'?'persona_needs_emotions':'pne_framework';
+  const node=ensureSourceNodeForHub('customer',sourceId);
+  if(!node) return;
+  const list=Array.isArray(runs)?runs:[];
+  node.runs=list.map(run=>{
+    const runAt=String(run&&run.runAt||'').trim();
+    const parsed=Date.parse(runAt);
+    const payload=kind==='persona'
+      ? {items:Array.isArray(run&&run.items)?run.items:[],sourceLabel:String(run&&run.sourceLabel||'').trim()}
+      : {pneCombos:Array.isArray(run&&run.pneCombos)?run.pneCombos:[],sourceLabel:String(run&&run.sourceLabel||'').trim()};
+    return {
+      runId:String(run&&run.batchId||run&&run.id||'').trim(),
+      date:Number.isFinite(parsed)?new Date(parsed).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Saved',
+      summary:String(run&&run.summary||'').trim() || (kind==='persona'?'Persona map':'PNE framework'),
+      count:String(run&&run.countLabel||'').trim() || '1',
+      data:payload,
+      url:'#',
+      _runAtIso:runAt
+    };
+  }).slice(0,12);
+  if(list[0]){
+    node.connected=true;
+    node.status='ready';
+    node.sync=String(list[0].summary||node.sync||'').trim() || node.sync;
+  }
+  refreshNode(node.id);
+}
+async function loadCustomerStrategyRuns(force){
+  const now=Date.now();
+  if(!force && customerStrategyRunsLoadedAt && (now-customerStrategyRunsLoadedAt)<15000) return customerStrategyRunsCache;
+  const workspaceId=workspaceIdForApi();
+  if(!workspaceId) return customerStrategyRunsCache;
+  const qs=currentProjectId?`?productId=${encodeURIComponent(String(currentProjectId))}&limit=12`:'?limit=12';
+  try{
+    const [personaRes,pneRes]=await Promise.all([
+      withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/customer-brain/persona-runs${qs}`,{headers:{...apiAuthHeaders()}}),
+      withApiBase(`/workspaces/${encodeURIComponent(workspaceId)}/customer-brain/pne-runs${qs}`,{headers:{...apiAuthHeaders()}})
+    ]);
+    const personaBody=await personaRes.json();
+    const pneBody=await pneRes.json();
+    customerStrategyRunsCache={
+      persona:Array.isArray(personaBody&&personaBody.runs)?personaBody.runs:[],
+      pne:Array.isArray(pneBody&&pneBody.runs)?pneBody.runs:[]
+    };
+    customerStrategyRunsLoadedAt=Date.now();
+    applyCustomerStrategyRunsToCanvas('persona',customerStrategyRunsCache.persona);
+    applyCustomerStrategyRunsToCanvas('pne',customerStrategyRunsCache.pne);
+    return customerStrategyRunsCache;
+  }catch(_e){
+    return customerStrategyRunsCache;
+  }
 }
 function ensureBriefNode(){
   const existing=gn('synth');
@@ -7872,6 +7935,8 @@ function shouldPreserveOnboardingFallbackState(incomingHasContent, existingHasCo
   return Boolean(existingHasContent);
 }
 function clearCustomerBrainState(sourceLabel){
+  customerStrategyRunsCache={persona:[],pne:[]};
+  customerStrategyRunsLoadedAt=0;
   applyCustomerBrainState(null,sourceLabel||'empty workspace state');
   ['persona_needs_emotions','pne_framework'].forEach((nodeId)=>{
     const node=ensureSourceNodeForHub('customer',nodeId);
@@ -8887,6 +8952,7 @@ async function hydrateAfterNodeOrchestration(nodeIds){
   if(needsCustomer){
     await hydrateAllRedditRunHistory();
     await loadCustomerBrainState();
+    await loadCustomerStrategyRuns(true);
   }
   if(needsPresentation){
     await loadPresentationBriefState(false);
@@ -9774,6 +9840,7 @@ async function runAgentNode(nodeId){
           personaUpdatedAt:String(result.updatedAt||new Date().toISOString())
         })
       },'persona analysis');
+      await loadCustomerStrategyRuns(true);
     }else if(sid==='pne_framework'){
       const personaNode=findHubSourceNode(hubId,'persona_needs_emotions');
       const items=personaNode&&personaNode.agentData&&Array.isArray(personaNode.agentData.lastResult&&personaNode.agentData.lastResult.items)
@@ -9812,6 +9879,7 @@ async function runAgentNode(nodeId){
           activePneId
         })
       },'pne framework');
+      await loadCustomerStrategyRuns(true);
     }
       node.connected=true;
     node.sync=sid==='reddit'

@@ -460,6 +460,19 @@ CREATE TABLE IF NOT EXISTS customer_brain_state (
   updated_at TEXT NOT NULL,
   PRIMARY KEY(workspace_id, product_id, node_id)
 );
+CREATE TABLE IF NOT EXISTS customer_strategy_runs (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  batch_id TEXT NOT NULL,
+  run_at TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  count_label TEXT NOT NULL,
+  source_label TEXT NOT NULL,
+  rows_json TEXT NOT NULL,
+  meta_json TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS workspace_brand_profiles (
   workspace_id TEXT PRIMARY KEY,
   brand_url TEXT NOT NULL,
@@ -857,6 +870,47 @@ const readCustomerBrainStateStmt = db.prepare(`
     updated_at as updatedAt
   FROM customer_brain_state
   WHERE workspace_id = ? AND product_id = ? AND node_id = ?
+  LIMIT 1
+`);
+const insertCustomerStrategyRunStmt = db.prepare(`
+  INSERT INTO customer_strategy_runs (
+    id, workspace_id, product_id, kind, batch_id, run_at, summary, count_label, source_label, rows_json, meta_json
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const readRecentCustomerStrategyRunsStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    product_id as productId,
+    kind,
+    batch_id as batchId,
+    run_at as runAt,
+    summary,
+    count_label as countLabel,
+    source_label as sourceLabel,
+    rows_json as rowsJson,
+    meta_json as metaJson
+  FROM customer_strategy_runs
+  WHERE workspace_id = ? AND product_id = ? AND kind = ?
+  ORDER BY datetime(run_at) DESC, id DESC
+  LIMIT ?
+`);
+const readCustomerStrategyRunByBatchStmt = db.prepare(`
+  SELECT
+    id,
+    workspace_id as workspaceId,
+    product_id as productId,
+    kind,
+    batch_id as batchId,
+    run_at as runAt,
+    summary,
+    count_label as countLabel,
+    source_label as sourceLabel,
+    rows_json as rowsJson,
+    meta_json as metaJson
+  FROM customer_strategy_runs
+  WHERE workspace_id = ? AND product_id = ? AND kind = ? AND batch_id = ?
+  ORDER BY datetime(run_at) DESC, id DESC
   LIMIT 1
 `);
 const upsertWorkspaceBrandProfileStmt = db.prepare(`
@@ -2762,6 +2816,117 @@ function upsertCustomerBrainState(input: {
     next.updatedAt
   );
   return getCustomerBrainState(next.workspaceId, next.productId, next.nodeId);
+}
+
+function createCustomerStrategyRun(input: {
+  workspaceId: string;
+  productId: string;
+  kind: "persona" | "pne";
+  batchId: string;
+  runAt?: string;
+  summary: string;
+  countLabel: string;
+  sourceLabel: string;
+  rows: Array<Record<string, unknown>>;
+  meta?: Record<string, unknown>;
+}) {
+  const record = {
+    id: newId("csr"),
+    workspaceId: String(input.workspaceId || "").trim(),
+    productId: String(input.productId || "").trim(),
+    kind: input.kind,
+    batchId: String(input.batchId || "").trim(),
+    runAt: String(input.runAt || nowIso()).trim() || nowIso(),
+    summary: String(input.summary || "").trim(),
+    countLabel: String(input.countLabel || "").trim(),
+    sourceLabel: String(input.sourceLabel || "").trim(),
+    rows: Array.isArray(input.rows) ? input.rows : [],
+    meta: isPlainObject(input.meta) ? input.meta : {}
+  };
+  insertCustomerStrategyRunStmt.run(
+    record.id,
+    record.workspaceId,
+    record.productId,
+    record.kind,
+    record.batchId,
+    record.runAt,
+    record.summary,
+    record.countLabel,
+    record.sourceLabel,
+    JSON.stringify(record.rows),
+    JSON.stringify(record.meta)
+  );
+  return record;
+}
+
+function parseCustomerStrategyRunRow(row: {
+  id: string;
+  workspaceId: string;
+  productId: string;
+  kind: "persona" | "pne";
+  batchId: string;
+  runAt: string;
+  summary: string;
+  countLabel: string;
+  sourceLabel: string;
+  rowsJson: string;
+  metaJson: string;
+}) {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    productId: row.productId,
+    kind: row.kind,
+    batchId: row.batchId,
+    runAt: row.runAt,
+    summary: row.summary,
+    countLabel: row.countLabel,
+    sourceLabel: row.sourceLabel,
+    items: row.kind === "persona" ? parseJsonArray(row.rowsJson) : undefined,
+    pneCombos: row.kind === "pne" ? withNormalizedPrimaryPneRows(parseJsonArray(row.rowsJson) as Array<Record<string, unknown>>) : undefined,
+    meta: parseJsonObject(row.metaJson)
+  };
+}
+
+function listCustomerStrategyRuns(workspaceId: string, productId: string, kind: "persona" | "pne", limit = 12) {
+  const rows = readRecentCustomerStrategyRunsStmt.all(
+    workspaceId,
+    productId,
+    kind,
+    Math.max(1, Math.min(200, Math.floor(limit)))
+  ) as Array<{
+    id: string;
+    workspaceId: string;
+    productId: string;
+    kind: "persona" | "pne";
+    batchId: string;
+    runAt: string;
+    summary: string;
+    countLabel: string;
+    sourceLabel: string;
+    rowsJson: string;
+    metaJson: string;
+  }>;
+  return rows.map((row) => parseCustomerStrategyRunRow(row));
+}
+
+function getCustomerStrategyRunByBatch(workspaceId: string, productId: string, kind: "persona" | "pne", batchId: string) {
+  const row = readCustomerStrategyRunByBatchStmt.get(workspaceId, productId, kind, batchId) as
+    | {
+        id: string;
+        workspaceId: string;
+        productId: string;
+        kind: "persona" | "pne";
+        batchId: string;
+        runAt: string;
+        summary: string;
+        countLabel: string;
+        sourceLabel: string;
+        rowsJson: string;
+        metaJson: string;
+      }
+    | undefined;
+  return row ? parseCustomerStrategyRunRow(row) : null;
 }
 
 function normalizeSettings(raw: unknown): DesktopSettings {
@@ -4876,6 +5041,7 @@ app.post("/agents/persona-needs-emotions", async (req, res) => {
     const brandAnalysis = (req.body?.brandAnalysis || {}) as Record<string, unknown>;
     const findings = Array.isArray(req.body?.findings) ? req.body.findings : [];
     const result = await runPersonaNeedEmotion({ brandAnalysis: brandAnalysis as any, findings: findings as any });
+    const batchId = newId("persona");
     const updated = upsertCustomerBrainState({
       workspaceId,
       productId,
@@ -4884,7 +5050,19 @@ app.post("/agents/persona-needs-emotions", async (req, res) => {
       selectionMode: "manual",
       meta: { personaUpdatedAt: nowIso() }
     });
-    res.json({ ...result, batchId: newId("persona"), updatedAt: updated.updatedAt });
+    createCustomerStrategyRun({
+      workspaceId,
+      productId,
+      kind: "persona",
+      batchId,
+      runAt: updated.updatedAt,
+      summary: `${Array.isArray(result.items) ? result.items.length : 0} persona rows mapped`,
+      countLabel: `${Array.isArray(result.items) ? result.items.length : 0} persona${Array.isArray(result.items) && result.items.length === 1 ? "" : "s"}`,
+      sourceLabel: "persona synthesis",
+      rows: Array.isArray(result.items) ? (result.items as Array<Record<string, unknown>>) : [],
+      meta: { nodeId }
+    });
+    res.json({ ...result, batchId, updatedAt: updated.updatedAt });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "persona_needs_emotions_failed" });
   }
@@ -4897,6 +5075,7 @@ app.post("/agents/pne-framework", (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const limit = Number(req.body?.limit || 12);
     const result = runPneFramework({ items: items as any, limit: Number.isFinite(limit) ? limit : 12 });
+    const batchId = newId("pne");
     const updated = upsertCustomerBrainState({
       workspaceId,
       productId,
@@ -4905,7 +5084,19 @@ app.post("/agents/pne-framework", (req, res) => {
       selectionMode: "manual",
       meta: { pneUpdatedAt: nowIso() }
     });
-    res.json({ ...result, batchId: newId("pne"), updatedAt: updated.updatedAt });
+    createCustomerStrategyRun({
+      workspaceId,
+      productId,
+      kind: "pne",
+      batchId,
+      runAt: updated.updatedAt,
+      summary: `${Array.isArray(result.pneCombos) ? result.pneCombos.length : 0} PNE combos generated`,
+      countLabel: `${Array.isArray(result.pneCombos) ? result.pneCombos.length : 0} PNE combo${Array.isArray(result.pneCombos) && result.pneCombos.length === 1 ? "" : "s"}`,
+      sourceLabel: "PNE synthesis",
+      rows: Array.isArray(result.pneCombos) ? (result.pneCombos as Array<Record<string, unknown>>) : [],
+      meta: { nodeId }
+    });
+    res.json({ ...result, batchId, updatedAt: updated.updatedAt });
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "pne_framework_failed" });
   }
@@ -5175,6 +5366,72 @@ app.get("/workspaces/:workspaceId/customer-brain/pne-state", (req, res) => {
   });
 });
 
+app.get("/workspaces/:workspaceId/customer-brain/persona-runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const limit = Number(req.query.limit || 12);
+  res.json({ workspaceId, productId, runs: listCustomerStrategyRuns(workspaceId, productId, "persona", Number.isFinite(limit) ? limit : 12) });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/persona-runs/:batchId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const batchId = String(req.params.batchId || "").trim();
+  const run = getCustomerStrategyRunByBatch(workspaceId, productId, "persona", batchId);
+  if (!run) {
+    res.status(404).json({ error: "persona_run_not_found" });
+    return;
+  }
+  res.json({ workspaceId, productId, run });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/pne-runs", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const limit = Number(req.query.limit || 12);
+  res.json({ workspaceId, productId, runs: listCustomerStrategyRuns(workspaceId, productId, "pne", Number.isFinite(limit) ? limit : 12) });
+});
+
+app.get("/workspaces/:workspaceId/customer-brain/pne-runs/:batchId", (req, res) => {
+  const hostedBase = resolveHostedApiBase(getDesktopSettings());
+  if (hostedBase) {
+    void proxyHostedRequest(req, res, hostedBase).catch((error: any) => {
+      res.status(502).json({ error: error?.message || "Hosted backend proxy failed" });
+    });
+    return;
+  }
+  const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
+  const productId = String(req.query.productId || "").trim() || "p-motion-canvas";
+  const batchId = String(req.params.batchId || "").trim();
+  const run = getCustomerStrategyRunByBatch(workspaceId, productId, "pne", batchId);
+  if (!run) {
+    res.status(404).json({ error: "pne_run_not_found" });
+    return;
+  }
+  res.json({ workspaceId, productId, run });
+});
+
 app.post("/workspaces/:workspaceId/customer-brain/insights", (req, res) => {
   const hostedBase = resolveHostedApiBase(getDesktopSettings());
   if (hostedBase) {
@@ -5211,6 +5468,7 @@ app.put("/workspaces/:workspaceId/customer-brain/persona-items", (req, res) => {
   const workspaceId = req.params.workspaceId || WORKSPACE_DEFAULT;
   const productId = String(req.body?.productId || "").trim() || "p-motion-canvas";
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const batchId = newId("persona_edit");
   const state = upsertCustomerBrainState({
     workspaceId,
     productId,
@@ -5219,7 +5477,19 @@ app.put("/workspaces/:workspaceId/customer-brain/persona-items", (req, res) => {
     selectionMode: "manual",
     meta: { personaUpdatedAt: nowIso() }
   });
-  res.json({ items: state.personaItems, updatedAt: state.updatedAt, batchId: newId("persona") });
+  createCustomerStrategyRun({
+    workspaceId,
+    productId,
+    kind: "persona",
+    batchId,
+    runAt: state.updatedAt,
+    summary: `${Array.isArray(state.personaItems) ? state.personaItems.length : 0} persona rows updated`,
+    countLabel: `${Array.isArray(state.personaItems) ? state.personaItems.length : 0} persona${Array.isArray(state.personaItems) && state.personaItems.length === 1 ? "" : "s"}`,
+    sourceLabel: "manual persona edit",
+    rows: Array.isArray(state.personaItems) ? (state.personaItems as Array<Record<string, unknown>>) : [],
+    meta: {}
+  });
+  res.json({ items: state.personaItems, updatedAt: state.updatedAt, batchId });
 });
 
 app.put("/workspaces/:workspaceId/customer-brain/pne-combos", (req, res) => {
@@ -5235,15 +5505,28 @@ app.put("/workspaces/:workspaceId/customer-brain/pne-combos", (req, res) => {
   const pneCombos = Array.isArray(req.body?.pneCombos) ? req.body.pneCombos : [];
   const normalizedPneCombos = withNormalizedPrimaryPneRows(pneCombos as Array<Record<string, unknown>>);
   const activePneId = deriveActivePneIdFromRows(normalizedPneCombos);
+  const batchId = newId("pne_edit");
   const state = upsertCustomerBrainState({
     workspaceId,
     productId,
     nodeId: "customer",
     pneCombos: normalizedPneCombos,
     selectionMode: "manual",
-    meta: { pneUpdatedAt: nowIso(), activePneId }
+      meta: { pneUpdatedAt: nowIso(), activePneId }
   });
-  res.json({ pneCombos: state.pneCombos, updatedAt: state.updatedAt, batchId: newId("pne") });
+  createCustomerStrategyRun({
+    workspaceId,
+    productId,
+    kind: "pne",
+    batchId,
+    runAt: state.updatedAt,
+    summary: `${Array.isArray(state.pneCombos) ? state.pneCombos.length : 0} PNE combos updated`,
+    countLabel: `${Array.isArray(state.pneCombos) ? state.pneCombos.length : 0} PNE combo${Array.isArray(state.pneCombos) && state.pneCombos.length === 1 ? "" : "s"}`,
+    sourceLabel: "manual PNE edit",
+    rows: Array.isArray(state.pneCombos) ? (state.pneCombos as Array<Record<string, unknown>>) : [],
+    meta: { activePneId }
+  });
+  res.json({ pneCombos: state.pneCombos, updatedAt: state.updatedAt, batchId });
 });
 
 app.get("/workspaces/:workspaceId/presentation/brief-state", (req, res) => {
